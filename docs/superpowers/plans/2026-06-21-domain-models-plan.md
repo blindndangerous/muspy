@@ -365,7 +365,7 @@ Run:
 $env:DEBUG='1'; $env:SECRET_KEY='domain-test-secret'; $env:DATABASE_URL='sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3'; uv run pytest tests/test_domain_models.py -q
 ```
 
-Expected: 5 tests pass.
+Expected: 8 tests pass.
 
 - [ ] **Step 4: Run migration check**
 

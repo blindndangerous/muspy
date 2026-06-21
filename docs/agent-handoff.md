@@ -4,7 +4,7 @@ Last updated: 2026-06-21
 
 ## Current Phase
 
-Foundation scaffold complete.
+Domain models in progress. Account, notification preference, and feed token models are complete.
 
 ## Repository
 
@@ -70,7 +70,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 ## Next Required Step
 
-Continue with Task 1 in docs/superpowers/plans/2026-06-21-domain-models-plan.md.
+Continue with Task 3 in docs/superpowers/plans/2026-06-21-domain-models-plan.md.
 
 ## Open Questions
 
