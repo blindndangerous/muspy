@@ -4,7 +4,7 @@ Last updated: 2026-06-21
 
 ## Current Phase
 
-Foundation scaffold.
+Foundation scaffold complete.
 
 ## Repository
 
@@ -65,7 +65,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 ## Next Required Step
 
-Continue with Task 11 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
+Write and review the domain model implementation plan before adding production domain models.
 
 ## Open Questions
 
