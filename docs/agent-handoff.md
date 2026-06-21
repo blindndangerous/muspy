@@ -58,6 +58,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `7447ab9` - `chore: remove legacy move manifest`
 - `2a9ba82` - Task 2 checkpoint
 - `3b041e8` - Task 2 handoff fix
+- `4ec07f7` - `chore: add django foundation`
 
 ## Next Required Step
 
