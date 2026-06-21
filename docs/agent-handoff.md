@@ -56,10 +56,12 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `326f332` - `docs: add modernization design`
 - `ae80057` - `docs: add foundation implementation plan`
 - `7447ab9` - `chore: remove legacy move manifest`
+- `2a9ba82` - Task 2 checkpoint
+- `3b041e8` - Task 2 handoff fix
 
 ## Next Required Step
 
-Continue with Task 3 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
+Continue with Task 5 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
 
 ## Open Questions
 
@@ -69,7 +71,7 @@ None currently blocking. Future implementation may need a specific production ho
 
 Current checkpoint verification:
 
-- `git status --short`
-- `uv lock --check`
-- `uv run python -c "import tomllib; tomllib.load(open('pyproject.toml','rb')); print('ok')"`
-- Task 2 diff touched only `.env.example`, `.python-version`, `pyproject.toml`, `uv.lock`, and `docs/agent-handoff.md`.
+- `uv run pytest tests/test_settings_security.py -q`
+- `uv run pytest tests/test_project_smoke.py -q`
+- `uv run python manage.py check`
+- `git status --short --untracked-files=all`
