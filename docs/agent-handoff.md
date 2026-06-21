@@ -57,12 +57,11 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 ## Next Required Step
 
-User must review and approve the written design spec. After approval:
+User must review and approve the foundation implementation plan:
 
-1. Read the `writing-plans` skill.
-2. Write `docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md`.
-3. Commit the implementation plan.
-4. Ask user to review the plan before coding.
+1. `docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md`
+2. After approval, choose execution mode: subagent-driven or inline execution.
+3. Do not start coding until the user chooses execution mode.
 
 ## Open Questions
 
