@@ -59,10 +59,11 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `2a9ba82` - Task 2 checkpoint
 - `3b041e8` - Task 2 handoff fix
 - `4ec07f7` - `chore: add django foundation`
+- `467e93e` - `chore: add container and ci foundation`
 
 ## Next Required Step
 
-Continue with Task 5 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
+Continue with Task 8 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
 
 ## Open Questions
 
