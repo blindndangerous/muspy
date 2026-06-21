@@ -65,7 +65,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 ## Next Required Step
 
-Continue with Task 10 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
+Continue with Task 11 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
 
 ## Open Questions
 
@@ -82,4 +82,6 @@ Current checkpoint verification:
 - `uv run ruff check .`
 - `uv run bandit -c pyproject.toml -r config releasewatch`
 - `uv run python manage.py check`
+- `.env` exists locally from `.env.example`
+- `podman-compose`, `podman`, and `docker` are not installed on this machine, so Task 10 container runtime verification could not run locally
 - `git status --short --untracked-files=all`
