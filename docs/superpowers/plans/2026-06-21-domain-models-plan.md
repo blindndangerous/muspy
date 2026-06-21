@@ -60,7 +60,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.utils import timezone
-
 from releasewatch.models import (
     FeedToken,
     NotificationCadence,
@@ -77,7 +76,7 @@ def create_user(username: str = "user"):
     return get_user_model().objects.create_user(
         username=username,
         email=f"{username}@example.test",
-        password="test-password",
+        password=None,
     )
 
 
@@ -115,18 +114,29 @@ def test_notification_preference_rejects_invalid_cadence():
         preference.full_clean()
 
 
-def test_feed_tokens_are_unique_per_hash_and_scoped_by_user_and_type():
+def test_feed_token_hash_is_globally_unique_but_user_and_type_can_repeat():
     user = create_user()
+    other_user = create_user("other")
 
     FeedToken.objects.create(
         user=user,
         feed_type=FeedToken.FeedType.RSS,
         token_hash="a" * 64,
     )
+    FeedToken.objects.create(
+        user=user,
+        feed_type=FeedToken.FeedType.RSS,
+        token_hash="b" * 64,
+    )
+    FeedToken.objects.create(
+        user=user,
+        feed_type=FeedToken.FeedType.ICAL,
+        token_hash="c" * 64,
+    )
 
     with pytest.raises(IntegrityError):
         FeedToken.objects.create(
-            user=user,
+            user=other_user,
             feed_type=FeedToken.FeedType.ICAL,
             token_hash="a" * 64,
         )
@@ -139,9 +149,13 @@ def test_redact_payload_removes_sensitive_values_recursively():
         "nested": {
             "access_token": "secret-token",
             "client_secret": "secret-client",
+            "contact": {"email": "nested@example.test"},
             "safe": "kept",
         },
-        "items": [{"api_key": "secret-key"}],
+        "items": [
+            {"api_key": "secret-key"},
+            {"email": "list@example.test"},
+        ],
     }
 
     redacted = redact_payload(payload)
@@ -152,9 +166,13 @@ def test_redact_payload_removes_sensitive_values_recursively():
         "nested": {
             "access_token": "[redacted]",
             "client_secret": "[redacted]",
+            "contact": {"email": "[redacted]"},
             "safe": "kept",
         },
-        "items": [{"api_key": "[redacted]"}],
+        "items": [
+            {"api_key": "[redacted]"},
+            {"email": "[redacted]"},
+        ],
     }
 ```
 
