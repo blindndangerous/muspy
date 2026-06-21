@@ -2,6 +2,16 @@
 
 [muspy](https://muspy.com) is an album release notification service.
 
+## Modernization
+
+This fork is planning a modern rebuild of Muspy. The existing Python 2/Django
+1.3 code is preserved for provenance and reference only.
+
+Start with:
+
+- `docs/superpowers/specs/2026-06-21-muspy-modernization-design.md`
+- `docs/agent-handoff.md`
+
 ## Development
 
 To set up development environment you need to install nginx and virtualenv, then run:
