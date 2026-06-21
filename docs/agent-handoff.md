@@ -4,7 +4,7 @@ Last updated: 2026-06-21
 
 ## Current Phase
 
-Domain models in progress. Core account, artist/import, release, notification, sync, and email models are complete.
+Domain models complete.
 
 ## Repository
 
@@ -69,10 +69,11 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `ead4f8f` - `fix: validate feed token hashes`
 - `9bdd01d` - `feat: add artist and import domain models`
 - `1b42d5f` - `feat: add release and notification domain models`
+- `8c60f14` - `feat: register domain models in admin`
 
 ## Next Required Step
 
-Continue with Task 7 in docs/superpowers/plans/2026-06-21-domain-models-plan.md.
+Write and review the upstream client implementation plan before adding MusicBrainz, ListenBrainz, or Last.fm clients.
 
 ## Open Questions
 
@@ -82,16 +83,17 @@ None currently blocking. Future implementation may need a specific production ho
 
 Current checkpoint verification:
 
-- `uv run pytest tests/test_settings_security.py -q`
 - `uv run coverage run -m pytest tests/test_settings_security.py -q`
-- `uv run coverage run --append -m pytest tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q`
+- `DEBUG=1 DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run coverage run --append -m pytest tests/test_domain_models.py tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q`
 - `uv run coverage report`
 - `uv run ruff check .`
 - `uv run bandit -c pyproject.toml -r config releasewatch`
 - `uv run python manage.py check`
 - `uv run ruff check releasewatch tests/test_domain_models.py`
-- `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run pytest tests/test_domain_models.py -q` passed with 22 tests
+- `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run pytest tests/test_domain_models.py -q` passed with 23 tests
 - `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run python manage.py makemigrations --check --dry-run`
+- Latest full verification passed with 7 settings tests, 45 remaining tests, 95% coverage, Ruff clean, Bandit clean, and Django check clean.
+- Known local warning: Django reports no `staticfiles/` directory during smoke tests.
 - `.env` exists locally from `.env.example`
 - `podman-compose`, `podman`, and `docker` are not installed on this machine, so Task 10 container runtime verification could not run locally
 - `git status --short --untracked-files=all`
