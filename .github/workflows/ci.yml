@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - modernization-design
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DEBUG: "1"
+      SECRET_KEY: ci-secret
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_URL: postgresql://muspy:muspy@localhost:5432/muspy
+      EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: muspy
+          POSTGRES_USER: muspy
+          POSTGRES_PASSWORD: muspy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U muspy -d muspy"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Django system check
+        run: uv run python manage.py check
+
+      - name: Test
+        run: uv run coverage run -m pytest
+
+      - name: Coverage
+        run: uv run coverage report
+
+      - name: Security scan
+        run: uv run bandit -r config releasewatch

@@ -1,0 +1,48 @@
+x-podman:
+  description: "Podman Compose compatible; no Docker-specific extensions required."
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Containerfile
+  environment:
+    - DATABASE_URL=postgresql://muspy:muspy@db:5432/muspy
+    - DEBUG=1
+    - SECRET_KEY=dev-only-change-me
+    - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: muspy
+      POSTGRES_USER: muspy
+      POSTGRES_PASSWORD: muspy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U muspy -d muspy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - muspy-postgres-data:/var/lib/postgresql/data
+
+  web:
+    <<: *app
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *app
+    command: ["python", "manage.py", "check"]
+
+  scheduler:
+    <<: *app
+    command: ["python", "manage.py", "check"]
+
+volumes:
+  muspy-postgres-data:
