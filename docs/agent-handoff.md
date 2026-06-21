@@ -54,6 +54,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 ## Last Known Good Commit
 
 - `326f332` - `docs: add modernization design`
+- `ae80057` - `docs: add foundation implementation plan`
 
 ## Next Required Step
 
