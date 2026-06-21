@@ -2,6 +2,7 @@ from datetime import date
 from uuid import uuid4
 
 import pytest
+from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
@@ -443,3 +444,25 @@ def test_user_deletion_removes_user_owned_domain_records():
     assert EmailLog.objects.count() == 0
     assert Artist.objects.count() == 1
     assert ReleaseEvent.objects.count() == 1
+
+
+def test_domain_models_are_registered_in_admin():
+    registered_models = set(admin.site._registry)
+
+    assert UserProfile in registered_models
+    assert NotificationPreference in registered_models
+    assert FeedToken in registered_models
+    assert Invite in registered_models
+    assert Artist in registered_models
+    assert ArtistAlias in registered_models
+    assert Follow in registered_models
+    assert ImportRun in registered_models
+    assert ImportCandidate in registered_models
+    assert ReleaseGroup in registered_models
+    assert Release in registered_models
+    assert ReleaseEvent in registered_models
+    assert Notification in registered_models
+    assert SyncState in registered_models
+    assert EmailLog in registered_models
+
+    assert "token_hash" not in admin.site._registry[FeedToken].search_fields
