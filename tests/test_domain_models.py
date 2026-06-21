@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -5,7 +7,13 @@ from django.db import IntegrityError
 from django.utils import timezone
 
 from releasewatch.models import (
+    Artist,
+    ArtistAlias,
     FeedToken,
+    Follow,
+    ImportCandidate,
+    ImportRun,
+    Invite,
     NotificationCadence,
     NotificationPreference,
     UserProfile,
@@ -152,3 +160,122 @@ def test_redact_payload_removes_sensitive_values_recursively():
             {"email": "[redacted]"},
         ],
     }
+
+
+def test_invite_tracks_uses_and_expiration():
+    creator = create_user("creator")
+    invite = Invite.objects.create(
+        code="abc123",
+        created_by=creator,
+        max_uses=2,
+        expires_at=timezone.now() + timezone.timedelta(days=1),
+    )
+
+    assert invite.can_be_used is True
+
+    invite.uses = 2
+    invite.save(update_fields=["uses"])
+
+    assert invite.can_be_used is False
+
+    with pytest.raises(IntegrityError):
+        Invite.objects.create(code="overused", max_uses=2, uses=3)
+
+
+def test_invite_cannot_be_used_when_expired_or_revoked():
+    expired = Invite.objects.create(
+        code="expired",
+        expires_at=timezone.now() - timezone.timedelta(days=1),
+    )
+    revoked = Invite.objects.create(code="revoked", revoked_at=timezone.now())
+
+    assert expired.can_be_used is False
+    assert revoked.can_be_used is False
+
+
+def test_artist_mbid_is_unique_and_aliases_order_by_locale_then_name():
+    artist = Artist.objects.create(
+        mbid=uuid4(),
+        name="The Example",
+        sort_name="Example, The",
+    )
+    ArtistAlias.objects.create(artist=artist, name="Example", locale="en")
+    ArtistAlias.objects.create(artist=artist, name="Ejemplo", locale="es")
+
+    assert list(artist.aliases.values_list("locale", "name")) == [
+        ("en", "Example"),
+        ("es", "Ejemplo"),
+    ]
+
+    with pytest.raises(IntegrityError):
+        Artist.objects.create(mbid=artist.mbid, name="Duplicate")
+
+
+def test_follow_is_unique_per_user_artist_and_can_track_ignored_artist():
+    user = create_user("listener")
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+
+    Follow.objects.create(user=user, artist=artist, is_ignored=True)
+
+    with pytest.raises(IntegrityError):
+        Follow.objects.create(user=user, artist=artist)
+
+
+def test_import_run_and_candidates_store_review_state():
+    user = create_user("importer")
+    artist = Artist.objects.create(mbid=uuid4(), name="Imported Artist")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LASTFM,
+        status=ImportRun.Status.PENDING_REVIEW,
+        raw_payload={"artists": ["Imported Artist"]},
+    )
+
+    candidate = ImportCandidate.objects.create(
+        import_run=run,
+        artist=artist,
+        source_name="Imported Artist",
+        source_identifier="lastfm:imported-artist",
+        review_state=ImportCandidate.ReviewState.PENDING,
+    )
+
+    assert candidate.review_state == ImportCandidate.ReviewState.PENDING
+    assert run.raw_payload["artists"] == ["Imported Artist"]
+
+
+def test_import_candidates_allow_multiple_blank_source_identifiers():
+    user = create_user("plain-text-importer")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.PLAIN_TEXT,
+        status=ImportRun.Status.PENDING_REVIEW,
+    )
+
+    ImportCandidate.objects.create(import_run=run, source_name="First")
+    ImportCandidate.objects.create(import_run=run, source_name="Second")
+
+    assert run.candidates.count() == 2
+
+
+def test_import_candidates_require_unique_nonblank_source_identifier_per_run():
+    user = create_user("identifier-importer")
+    first_run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+    second_run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+
+    ImportCandidate.objects.create(
+        import_run=first_run,
+        source_name="First",
+        source_identifier="lastfm:artist",
+    )
+    ImportCandidate.objects.create(
+        import_run=second_run,
+        source_name="Second",
+        source_identifier="lastfm:artist",
+    )
+
+    with pytest.raises(IntegrityError):
+        ImportCandidate.objects.create(
+            import_run=first_run,
+            source_name="Duplicate",
+            source_identifier="lastfm:artist",
+        )
