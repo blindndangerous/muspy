@@ -55,10 +55,11 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 - `326f332` - `docs: add modernization design`
 - `ae80057` - `docs: add foundation implementation plan`
+- `7447ab9` - `chore: remove legacy move manifest`
 
 ## Next Required Step
 
-Continue with Task 2 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
+Continue with Task 3 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
 
 ## Open Questions
 

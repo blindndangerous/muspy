@@ -1,0 +1,51 @@
+[project]
+name = "muspy"
+version = "0.1.0"
+description = "Modern album release notification service"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "Django>=6.0,<6.1",
+    "dj-database-url>=3.0,<4.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "whitenoise>=6.9,<7.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.8,<2.0",
+    "coverage[toml]>=7.13,<8.0",
+    "pytest>=9.0,<10.0",
+    "pytest-django>=4.11,<5.0",
+    "pytest-mock>=3.15,<4.0",
+    "ruff>=0.14,<1.0",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py", "*_test.py"]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+branch = true
+source = ["config", "releasewatch"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ", "S"]
+ignore = [
+    "S101",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "legacy"]
+skips = ["B101"]
