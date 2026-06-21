@@ -60,6 +60,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `3b041e8` - Task 2 handoff fix
 - `4ec07f7` - `chore: add django foundation`
 - `467e93e` - `chore: add container and ci foundation`
+- `8591cce` - `ci: load bandit config`
 
 ## Next Required Step
 
