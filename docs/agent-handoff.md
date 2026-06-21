@@ -67,8 +67,9 @@ None currently blocking. Future implementation may need a specific production ho
 
 ## Verification Notes
 
-Planning docs are docs-only. Before claiming this phase complete, verify:
+Current checkpoint verification:
 
 - `git status --short`
-- relevant docs exist
-- staged diff contains only planning documentation and README pointer
+- `uv lock --check`
+- `uv run python -c "import tomllib; tomllib.load(open('pyproject.toml','rb')); print('ok')"`
+- Task 2 diff touched only `.env.example`, `.python-version`, `pyproject.toml`, `uv.lock`, and `docs/agent-handoff.md`.
