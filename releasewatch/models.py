@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 
 SENSITIVE_PAYLOAD_KEYS = frozenset(
@@ -12,6 +13,11 @@ SENSITIVE_PAYLOAD_KEYS = frozenset(
         "secret",
         "token",
     }
+)
+
+SHA256_HEX_VALIDATOR = RegexValidator(
+    regex=r"^[0-9a-fA-F]{64}$",
+    message="Enter a valid SHA-256 hex digest.",
 )
 
 
@@ -76,7 +82,11 @@ class FeedToken(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     feed_type = models.CharField(max_length=8, choices=FeedType)
-    token_hash = models.CharField(max_length=64, unique=True)
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        validators=[SHA256_HEX_VALIDATOR],
+    )
     name = models.CharField(max_length=100, blank=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

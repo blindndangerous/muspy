@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.utils import timezone
+
 from releasewatch.models import (
     FeedToken,
     NotificationCadence,
@@ -82,6 +83,41 @@ def test_feed_token_hash_is_globally_unique_but_user_and_type_can_repeat():
             feed_type=FeedToken.FeedType.ICAL,
             token_hash="a" * 64,
         )
+
+
+def test_feed_token_hash_accepts_valid_sha256_hex():
+    user = create_user()
+    token = FeedToken(
+        user=user,
+        feed_type=FeedToken.FeedType.RSS,
+        token_hash="a" * 64,
+    )
+
+    token.full_clean()
+
+
+def test_feed_token_hash_rejects_short_sha256_hex():
+    user = create_user()
+    token = FeedToken(
+        user=user,
+        feed_type=FeedToken.FeedType.RSS,
+        token_hash="a" * 63,
+    )
+
+    with pytest.raises(ValidationError):
+        token.full_clean()
+
+
+def test_feed_token_hash_rejects_non_hex_sha256_string():
+    user = create_user()
+    token = FeedToken(
+        user=user,
+        feed_type=FeedToken.FeedType.RSS,
+        token_hash="g" * 64,
+    )
+
+    with pytest.raises(ValidationError):
+        token.full_clean()
 
 
 def test_redact_payload_removes_sensitive_values_recursively():
