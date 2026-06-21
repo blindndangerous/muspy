@@ -52,6 +52,6 @@ def test_ci_workflow_runs_required_quality_commands():
         "uv run python manage.py check",
         "uv run coverage run -m pytest",
         "uv run coverage report",
-        "uv run bandit -r config releasewatch",
+        "uv run bandit -c pyproject.toml -r config releasewatch",
     ):
         assert command in workflow
