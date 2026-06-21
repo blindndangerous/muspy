@@ -64,6 +64,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `2854f1f` - `docs: add foundation setup guidance`
 - `14b4bcc` - `docs: add domain model plan`
 - `306ee07` - `docs: tighten domain model plan`
+- `69937a4` - `docs: fix domain plan verification env`
 
 ## Next Required Step
 
