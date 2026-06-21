@@ -4,7 +4,7 @@ Last updated: 2026-06-21
 
 ## Current Phase
 
-Domain models in progress. Account, notification preference, feed token, invite, artist, follow, and import models are complete.
+Domain models in progress. Core account, artist/import, release, notification, sync, and email models are complete.
 
 ## Repository
 
@@ -68,10 +68,11 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `da86c19` - `feat: add account domain models`
 - `ead4f8f` - `fix: validate feed token hashes`
 - `9bdd01d` - `feat: add artist and import domain models`
+- `1b42d5f` - `feat: add release and notification domain models`
 
 ## Next Required Step
 
-Continue with Task 5 in docs/superpowers/plans/2026-06-21-domain-models-plan.md.
+Continue with Task 7 in docs/superpowers/plans/2026-06-21-domain-models-plan.md.
 
 ## Open Questions
 
@@ -89,7 +90,7 @@ Current checkpoint verification:
 - `uv run bandit -c pyproject.toml -r config releasewatch`
 - `uv run python manage.py check`
 - `uv run ruff check releasewatch tests/test_domain_models.py`
-- `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run pytest tests/test_domain_models.py -q` passed with 15 tests
+- `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run pytest tests/test_domain_models.py -q` passed with 22 tests
 - `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run python manage.py makemigrations --check --dry-run`
 - `.env` exists locally from `.env.example`
 - `podman-compose`, `podman`, and `docker` are not installed on this machine, so Task 10 container runtime verification could not run locally
