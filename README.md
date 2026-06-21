@@ -1,39 +1,39 @@
 # muspy
 
-[muspy](https://muspy.com) is an album release notification service.
+Muspy is an album release notification service. This repository is a modern
+fork of the original project, with the new Django implementation in progress.
 
-## Modernization
+The legacy Python 2 and Django 1.3 application remains under `legacy/` for
+provenance and reference. New work should happen outside `legacy/`.
 
-This fork is planning a modern rebuild of Muspy. The existing Python 2/Django
-1.3 code is preserved for provenance and reference only.
+## Current status
 
-Start with:
+Modernization is in progress. The repository currently contains project
+scaffolding, container files, security settings, CI checks, and planning docs.
+The user-facing application is still being rebuilt.
 
-- `docs/superpowers/specs/2026-06-21-muspy-modernization-design.md`
-- `docs/agent-handoff.md`
+Useful project docs:
 
-## Development
+- Design spec: `docs/superpowers/specs/2026-06-21-muspy-modernization-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md`
+- Agent handoff: `docs/agent-handoff.md`
+- Development setup: `docs/development.md`
+- Deployment notes: `docs/deployment.md`
+- Security notes: `docs/security.md`
 
-To set up development environment you need to install nginx and virtualenv, then run:
+## Quick start
 
-    % virtualenv env
-    % source env/bin/activate
-    % pip install -r requirements.txt
+Install `uv`, then install dependencies:
 
-Edit your main `nginx.conf`:
+```sh
+uv sync --locked --all-extras --dev
+```
 
-    http {
-        ...
-        include /path/to/muspy/nginx-dev.conf;
-    }
+Run tests:
 
-Update the project location in `muspy/nginx-dev.conf` and restart nginx.
+```sh
+uv run pytest
+```
 
-Add this line to your `/etc/hosts`:
-
-    127.0.0.1  muspy.dev
-
-Go to the project directory and run `make db` to create an empty database.
-
-Type `make run` and go to <http://muspy.dev/>. If static files don't load make
-sure nginx has rx permissions for the `muspy/static` directory.
+For a full local setup, including PostgreSQL, migrations, and the development
+admin account, see `docs/development.md`.
