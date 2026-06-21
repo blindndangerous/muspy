@@ -292,3 +292,213 @@ class ImportCandidate(models.Model):
 
     def __str__(self) -> str:
         return self.source_name
+
+
+class DatePrecision(models.TextChoices):
+    YEAR = "year", "Year"
+    MONTH = "month", "Month"
+    DAY = "day", "Day"
+
+
+class ReleaseGroup(models.Model):
+    mbid = models.UUIDField(unique=True)
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="release_groups")
+    title = models.CharField(max_length=255)
+    primary_type = models.CharField(max_length=64, blank=True)
+    secondary_types = models.JSONField(default=list, blank=True)
+    first_release_date = models.DateField(null=True, blank=True)
+    first_release_precision = models.CharField(
+        max_length=8,
+        choices=DatePrecision,
+        blank=True,
+    )
+    raw_payload = models.JSONField(default=dict, blank=True)
+    last_refreshed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["artist", "title"]),
+            models.Index(fields=["first_release_date"]),
+            models.Index(fields=["last_refreshed_at"]),
+        ]
+        ordering = ["artist__sort_name", "first_release_date", "title"]
+
+    def __str__(self) -> str:
+        return f"{self.artist} - {self.title}"
+
+
+class Release(models.Model):
+    mbid = models.UUIDField(unique=True)
+    release_group = models.ForeignKey(
+        ReleaseGroup,
+        on_delete=models.CASCADE,
+        related_name="releases",
+    )
+    country = models.CharField(max_length=2, blank=True)
+    release_date = models.DateField(null=True, blank=True)
+    release_date_precision = models.CharField(
+        max_length=8,
+        choices=DatePrecision,
+        blank=True,
+    )
+    status = models.CharField(max_length=64, blank=True)
+    media_format = models.CharField(max_length=64, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["release_group", "country"]),
+            models.Index(fields=["release_date"]),
+        ]
+
+    def __str__(self) -> str:
+        country = f" ({self.country})" if self.country else ""
+        return f"{self.release_group}{country}"
+
+
+class ReleaseEvent(models.Model):
+    release_group = models.ForeignKey(
+        ReleaseGroup,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    release = models.ForeignKey(
+        Release,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    country = models.CharField(max_length=2, blank=True)
+    event_date = models.DateField(null=True, blank=True)
+    date_precision = models.CharField(max_length=8, choices=DatePrecision, blank=True)
+    visible = models.BooleanField(default=True)
+    notifiable = models.BooleanField(default=True)
+    discovered_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["event_date", "date_precision"]),
+            models.Index(fields=["visible", "notifiable"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["release_group", "release", "country"],
+                condition=models.Q(release__isnull=False),
+                name="release_event_unique_group_release_country",
+            ),
+            models.UniqueConstraint(
+                fields=["release_group", "country"],
+                condition=models.Q(release__isnull=True),
+                name="release_event_unique_group_country_no_release",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return str(self.release_group)
+
+
+class Notification(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Skipped"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    release_event = models.ForeignKey(ReleaseEvent, on_delete=models.CASCADE)
+    cadence_bucket = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, choices=Status, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    failed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["cadence_bucket", "status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "release_event", "cadence_bucket"],
+                name="notification_unique_user_event_bucket",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} notification for {self.release_event}"
+
+
+class SyncState(models.Model):
+    class SyncType(models.TextChoices):
+        ARTIST = "artist", "Artist"
+        RELEASES = "releases", "Releases"
+        COVER_ART = "cover_art", "Cover art"
+
+    class Status(models.TextChoices):
+        IDLE = "idle", "Idle"
+        STARTED = "started", "Started"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="sync_states")
+    sync_type = models.CharField(max_length=32, choices=SyncType)
+    status = models.CharField(max_length=16, choices=Status, default=Status.IDLE)
+    last_started_at = models.DateTimeField(null=True, blank=True)
+    last_succeeded_at = models.DateTimeField(null=True, blank=True)
+    last_failed_at = models.DateTimeField(null=True, blank=True)
+    retry_after = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["sync_type", "status"]),
+            models.Index(fields=["retry_after"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["artist", "sync_type"],
+                name="sync_state_unique_artist_type",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.artist} {self.sync_type} sync"
+
+
+class EmailLog(models.Model):
+    class MessageType(models.TextChoices):
+        VERIFICATION = "verification", "Verification"
+        PASSWORD_RESET = "password_reset", "Password reset"
+        DIGEST = "digest", "Digest"
+        INSTANT = "instant", "Instant"
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    message_type = models.CharField(max_length=32, choices=MessageType)
+    status = models.CharField(max_length=16, choices=Status, default=Status.QUEUED)
+    provider_message_id = models.CharField(max_length=255, blank=True)
+    provider_response = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "message_type", "created_at"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.message_type} email for {self.user}"

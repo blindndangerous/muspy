@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import uuid4
 
 import pytest
@@ -9,13 +10,20 @@ from django.utils import timezone
 from releasewatch.models import (
     Artist,
     ArtistAlias,
+    DatePrecision,
+    EmailLog,
     FeedToken,
     Follow,
     ImportCandidate,
     ImportRun,
     Invite,
+    Notification,
     NotificationCadence,
     NotificationPreference,
+    Release,
+    ReleaseEvent,
+    ReleaseGroup,
+    SyncState,
     UserProfile,
     redact_payload,
 )
@@ -279,3 +287,159 @@ def test_import_candidates_require_unique_nonblank_source_identifier_per_run():
             source_name="Duplicate",
             source_identifier="lastfm:artist",
         )
+
+
+def test_release_group_stores_incomplete_date_with_precision():
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(
+        mbid=uuid4(),
+        artist=artist,
+        title="Future Album",
+        primary_type="Album",
+        first_release_date=date(2026, 6, 1),
+        first_release_precision=DatePrecision.MONTH,
+    )
+
+    assert group.first_release_precision == DatePrecision.MONTH
+    assert str(group) == "Artist - Future Album"
+
+
+def test_release_is_unique_by_mbid_and_country_date_is_queryable():
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(mbid=uuid4(), artist=artist, title="Album")
+    release = Release.objects.create(
+        mbid=uuid4(),
+        release_group=group,
+        country="US",
+        release_date=date(2026, 6, 21),
+        release_date_precision=DatePrecision.DAY,
+    )
+
+    assert release.country == "US"
+    assert Release.objects.get(country="US", release_date=date(2026, 6, 21)) == release
+
+    with pytest.raises(IntegrityError):
+        Release.objects.create(mbid=release.mbid, release_group=group)
+
+
+def test_release_event_dedupes_release_group_release_country():
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(mbid=uuid4(), artist=artist, title="Album")
+    release = Release.objects.create(mbid=uuid4(), release_group=group, country="US")
+
+    ReleaseEvent.objects.create(
+        release_group=group,
+        release=release,
+        country="US",
+        event_date=date(2026, 6, 21),
+        date_precision=DatePrecision.DAY,
+    )
+
+    with pytest.raises(IntegrityError):
+        ReleaseEvent.objects.create(
+            release_group=group,
+            release=release,
+            country="US",
+            event_date=date(2026, 7, 1),
+            date_precision=DatePrecision.MONTH,
+        )
+
+
+def test_release_event_dedupes_release_group_country_without_concrete_release():
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(mbid=uuid4(), artist=artist, title="Album")
+
+    ReleaseEvent.objects.create(
+        release_group=group,
+        country="US",
+        event_date=date(2026, 6, 21),
+        date_precision=DatePrecision.DAY,
+    )
+
+    with pytest.raises(IntegrityError):
+        ReleaseEvent.objects.create(
+            release_group=group,
+            country="US",
+            event_date=date(2027, 1, 1),
+            date_precision=DatePrecision.YEAR,
+        )
+
+
+def test_notification_dedupes_user_event_and_bucket():
+    user = create_user("notify")
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(mbid=uuid4(), artist=artist, title="Album")
+    event = ReleaseEvent.objects.create(release_group=group)
+
+    Notification.objects.create(
+        user=user,
+        release_event=event,
+        cadence_bucket="daily:2026-06-21",
+    )
+
+    with pytest.raises(IntegrityError):
+        Notification.objects.create(
+            user=user,
+            release_event=event,
+            cadence_bucket="daily:2026-06-21",
+        )
+
+
+def test_sync_state_and_email_log_store_retry_and_provider_metadata():
+    user = create_user("email")
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+
+    sync_state = SyncState.objects.create(
+        artist=artist,
+        sync_type=SyncState.SyncType.RELEASES,
+        status=SyncState.Status.FAILED,
+        retry_after=timezone.now(),
+        error_message="rate limited",
+    )
+    log = EmailLog.objects.create(
+        user=user,
+        message_type=EmailLog.MessageType.DIGEST,
+        status=EmailLog.Status.FAILED,
+        provider_response={"code": "421"},
+        error_message="temporary failure",
+    )
+
+    assert sync_state.status == SyncState.Status.FAILED
+    assert log.provider_response["code"] == "421"
+
+
+def test_user_deletion_removes_user_owned_domain_records():
+    user = create_user("delete-me")
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(mbid=uuid4(), artist=artist, title="Album")
+    event = ReleaseEvent.objects.create(release_group=group)
+    import_run = ImportRun.objects.create(user=user, source=ImportRun.Source.PLAIN_TEXT)
+
+    UserProfile.objects.create(user=user)
+    NotificationPreference.objects.create(user=user)
+    FeedToken.objects.create(
+        user=user,
+        feed_type=FeedToken.FeedType.RSS,
+        token_hash="b" * 64,
+    )
+    Follow.objects.create(user=user, artist=artist)
+    ImportCandidate.objects.create(import_run=import_run, artist=artist, source_name="Artist")
+    Notification.objects.create(
+        user=user,
+        release_event=event,
+        cadence_bucket="daily:2026-06-21",
+    )
+    EmailLog.objects.create(user=user, message_type=EmailLog.MessageType.DIGEST)
+
+    user.delete()
+
+    assert UserProfile.objects.count() == 0
+    assert NotificationPreference.objects.count() == 0
+    assert FeedToken.objects.count() == 0
+    assert Follow.objects.count() == 0
+    assert ImportRun.objects.count() == 0
+    assert ImportCandidate.objects.count() == 0
+    assert Notification.objects.count() == 0
+    assert EmailLog.objects.count() == 0
+    assert Artist.objects.count() == 1
+    assert ReleaseEvent.objects.count() == 1
