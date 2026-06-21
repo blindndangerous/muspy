@@ -61,10 +61,11 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `4ec07f7` - `chore: add django foundation`
 - `467e93e` - `chore: add container and ci foundation`
 - `8591cce` - `ci: load bandit config`
+- `2854f1f` - `docs: add foundation setup guidance`
 
 ## Next Required Step
 
-Continue with Task 8 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
+Continue with Task 10 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
 
 ## Open Questions
 
@@ -75,6 +76,10 @@ None currently blocking. Future implementation may need a specific production ho
 Current checkpoint verification:
 
 - `uv run pytest tests/test_settings_security.py -q`
-- `uv run pytest tests/test_project_smoke.py -q`
+- `uv run coverage run -m pytest tests/test_settings_security.py -q`
+- `uv run coverage run --append -m pytest tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q`
+- `uv run coverage report`
+- `uv run ruff check .`
+- `uv run bandit -c pyproject.toml -r config releasewatch`
 - `uv run python manage.py check`
 - `git status --short --untracked-files=all`
