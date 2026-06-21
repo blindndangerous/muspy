@@ -53,7 +53,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 ## Last Known Good Commit
 
-Not recorded yet. Planning docs have not been committed.
+- `326f332` - `docs: add modernization design`
 
 ## Next Required Step
 
