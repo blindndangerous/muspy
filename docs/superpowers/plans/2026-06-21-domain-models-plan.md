@@ -19,13 +19,14 @@ No legacy code should be copied. The `legacy/` directory remains reference-only.
 ## Model Decisions
 
 - Store upstream IDs as UUID strings in `UUIDField` where MusicBrainz MBIDs are required.
-- Store raw upstream payloads in `models.JSONField(default=dict, blank=True)`.
+- Store raw upstream payloads in `models.JSONField(default=dict, blank=True)` only after callers redact credentials, tokens, email addresses, and provider secrets.
 - Store incomplete dates as a nullable `DateField` plus a date precision enum.
-- Store country as nullable two-character ISO code strings for now. Do not add a country package in this plan.
+- Store country as non-null two-character ISO code strings with `blank=True` for unknown country. Do not add a country package in this plan.
 - Split `UserProfile` from `NotificationPreference`: profile owns account metadata, preference owns notification settings.
 - Use `Follow.is_ignored` to support ignored imported artists without adding a second user-artist table.
 - Add `ImportCandidate` even though the design sketch only named `ImportRun`; reviewable imports need per-candidate state.
-- Use token hashes in `FeedToken`, not plaintext tokens. Token generation will be added in the feed plan.
+- Use deterministic HMAC-SHA256 token hashes in `FeedToken`, not plaintext tokens. Token generation will be added in the feed plan.
+- Keep one `ReleaseEvent` per release group, concrete release, and country. If MusicBrainz changes the date or precision, sync code updates the existing event instead of creating a second event.
 
 ## File Structure
 
@@ -65,6 +66,7 @@ from releasewatch.models import (
     NotificationCadence,
     NotificationPreference,
     UserProfile,
+    redact_payload,
 )
 
 
@@ -119,15 +121,41 @@ def test_feed_tokens_are_unique_per_hash_and_scoped_by_user_and_type():
     FeedToken.objects.create(
         user=user,
         feed_type=FeedToken.FeedType.RSS,
-        token_hash="hash-a",
+        token_hash="a" * 64,
     )
 
     with pytest.raises(IntegrityError):
         FeedToken.objects.create(
             user=user,
             feed_type=FeedToken.FeedType.ICAL,
-            token_hash="hash-a",
+            token_hash="a" * 64,
         )
+
+
+def test_redact_payload_removes_sensitive_values_recursively():
+    payload = {
+        "artist": "Example",
+        "email": "person@example.test",
+        "nested": {
+            "access_token": "secret-token",
+            "client_secret": "secret-client",
+            "safe": "kept",
+        },
+        "items": [{"api_key": "secret-key"}],
+    }
+
+    redacted = redact_payload(payload)
+
+    assert redacted == {
+        "artist": "Example",
+        "email": "[redacted]",
+        "nested": {
+            "access_token": "[redacted]",
+            "client_secret": "[redacted]",
+            "safe": "kept",
+        },
+        "items": [{"api_key": "[redacted]"}],
+    }
 ```
 
 - [ ] **Step 2: Run tests to verify red**
@@ -156,6 +184,35 @@ Create or replace `releasewatch/models.py` with:
 ```python
 from django.conf import settings
 from django.db import models
+
+
+SENSITIVE_PAYLOAD_KEYS = frozenset(
+    {
+        "access_token",
+        "api_key",
+        "authorization",
+        "email",
+        "password",
+        "refresh_token",
+        "secret",
+        "token",
+    }
+)
+
+
+def redact_payload(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, child in value.items():
+            normalized_key = str(key).lower()
+            if any(sensitive_key in normalized_key for sensitive_key in SENSITIVE_PAYLOAD_KEYS):
+                redacted[key] = "[redacted]"
+            else:
+                redacted[key] = redact_payload(child)
+        return redacted
+    if isinstance(value, list):
+        return [redact_payload(item) for item in value]
+    return value
 
 
 class NotificationCadence(models.TextChoices):
@@ -204,7 +261,7 @@ class FeedToken(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     feed_type = models.CharField(max_length=8, choices=FeedType)
-    token_hash = models.CharField(max_length=128, unique=True)
+    token_hash = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=100, blank=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -244,7 +301,7 @@ Run:
 $env:DEBUG='1'; $env:SECRET_KEY='domain-test-secret'; $env:DATABASE_URL='sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3'; uv run pytest tests/test_domain_models.py -q
 ```
 
-Expected: 4 tests pass.
+Expected: 5 tests pass.
 
 - [ ] **Step 4: Run migration check**
 
@@ -275,21 +332,37 @@ Expected: commit succeeds.
 
 - Modify: `tests/test_domain_models.py`
 
-- [ ] **Step 1: Add failing invite and artist tests**
+- [ ] **Step 1: Update imports and add failing invite and artist tests**
 
-Append to `tests/test_domain_models.py`:
+First update the import block at the top of `tests/test_domain_models.py`:
 
 ```python
 from uuid import uuid4
 
+import pytest
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+from django.utils import timezone
+
 from releasewatch.models import (
     Artist,
     ArtistAlias,
+    FeedToken,
     Follow,
     ImportCandidate,
     ImportRun,
     Invite,
+    NotificationCadence,
+    NotificationPreference,
+    UserProfile,
+    redact_payload,
 )
+```
+
+Then append to `tests/test_domain_models.py`:
+
+```python
 
 
 def test_invite_tracks_uses_and_expiration():
@@ -307,6 +380,9 @@ def test_invite_tracks_uses_and_expiration():
     invite.save(update_fields=["uses"])
 
     assert invite.can_be_used is False
+
+    with pytest.raises(IntegrityError):
+        Invite.objects.create(code="overused", max_uses=2, uses=3)
 
 
 def test_artist_mbid_is_unique_and_aliases_order_by_locale_then_name():
@@ -423,6 +499,10 @@ class Invite(models.Model):
             models.CheckConstraint(
                 condition=models.Q(uses__gte=0),
                 name="invite_uses_gte_0",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(uses__lte=models.F("max_uses")),
+                name="invite_uses_lte_max_uses",
             ),
         ]
 
@@ -619,22 +699,45 @@ Expected: commit succeeds.
 
 - Modify: `tests/test_domain_models.py`
 
-- [ ] **Step 1: Add failing release and notification tests**
+- [ ] **Step 1: Update imports and add failing release and notification tests**
 
-Append to `tests/test_domain_models.py`:
+First update the import block at the top of `tests/test_domain_models.py`:
 
 ```python
 from datetime import date
+from uuid import uuid4
+
+import pytest
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+from django.utils import timezone
 
 from releasewatch.models import (
+    Artist,
+    ArtistAlias,
     DatePrecision,
     EmailLog,
+    FeedToken,
+    Follow,
+    ImportCandidate,
+    ImportRun,
+    Invite,
     Notification,
+    NotificationCadence,
+    NotificationPreference,
     Release,
     ReleaseEvent,
     ReleaseGroup,
     SyncState,
+    UserProfile,
+    redact_payload,
 )
+```
+
+Then append to `tests/test_domain_models.py`:
+
+```python
 
 
 def test_release_group_stores_incomplete_date_with_precision():
@@ -753,6 +856,39 @@ def test_sync_state_and_email_log_store_retry_and_provider_metadata():
 
     assert sync_state.status == SyncState.Status.FAILED
     assert log.provider_response["code"] == "421"
+
+
+def test_user_deletion_removes_user_owned_domain_records():
+    user = create_user("delete-me")
+    artist = Artist.objects.create(mbid=uuid4(), name="Artist")
+    group = ReleaseGroup.objects.create(mbid=uuid4(), artist=artist, title="Album")
+    event = ReleaseEvent.objects.create(release_group=group)
+    import_run = ImportRun.objects.create(user=user, source=ImportRun.Source.PLAIN_TEXT)
+
+    UserProfile.objects.create(user=user)
+    NotificationPreference.objects.create(user=user)
+    FeedToken.objects.create(
+        user=user,
+        feed_type=FeedToken.FeedType.RSS,
+        token_hash="b" * 64,
+    )
+    Follow.objects.create(user=user, artist=artist)
+    ImportCandidate.objects.create(import_run=import_run, artist=artist, source_name="Artist")
+    Notification.objects.create(user=user, release_event=event, cadence_bucket="daily:2026-06-21")
+    EmailLog.objects.create(user=user, message_type=EmailLog.MessageType.DIGEST)
+
+    user.delete()
+
+    assert UserProfile.objects.count() == 0
+    assert NotificationPreference.objects.count() == 0
+    assert FeedToken.objects.count() == 0
+    assert Follow.objects.count() == 0
+    assert ImportRun.objects.count() == 0
+    assert ImportCandidate.objects.count() == 0
+    assert Notification.objects.count() == 0
+    assert EmailLog.objects.count() == 0
+    assert Artist.objects.count() == 1
+    assert ReleaseEvent.objects.count() == 1
 ```
 
 - [ ] **Step 2: Run tests to verify red**
@@ -1027,13 +1163,17 @@ Expected: commit succeeds.
 - Create: `releasewatch/admin.py`
 - Modify: `tests/test_domain_models.py`
 
-- [ ] **Step 1: Add failing admin registration test**
+- [ ] **Step 1: Update imports and add failing admin registration test**
 
-Append to `tests/test_domain_models.py`:
+First add this import near the other Django imports at the top of `tests/test_domain_models.py`:
 
 ```python
 from django.contrib import admin
+```
 
+Then append to `tests/test_domain_models.py`:
+
+```python
 
 def test_domain_models_are_registered_in_admin():
     registered_models = set(admin.site._registry)
@@ -1108,7 +1248,7 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
 class FeedTokenAdmin(admin.ModelAdmin):
     list_display = ["user", "feed_type", "name", "revoked_at", "last_used_at"]
     list_filter = ["feed_type", "revoked_at"]
-    search_fields = ["user__username", "token_hash"]
+    search_fields = ["user__username", "user__email", "name"]
 
 
 @admin.register(Invite)
