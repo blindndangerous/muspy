@@ -1355,8 +1355,14 @@ Expected: all domain model tests pass.
 Run:
 
 ```powershell
-$env:SECRET_KEY='domain-test-secret'; uv run pytest tests/test_settings_security.py -q
-$env:DEBUG='1'; $env:SECRET_KEY='domain-test-secret'; $env:DATABASE_URL='sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3'; uv run coverage run -m pytest tests/test_domain_models.py tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+$env:SECRET_KEY='domain-test-secret'
+uv run coverage erase
+uv run coverage run -m pytest tests/test_settings_security.py -q
+$env:DEBUG='1'
+$env:DATABASE_URL='sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3'
+uv run coverage run --append -m pytest tests/test_domain_models.py tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q
+Remove-Item Env:DEBUG,Env:SECRET_KEY,Env:DATABASE_URL -ErrorAction SilentlyContinue
 uv run coverage report
 uv run ruff check .
 uv run bandit -c pyproject.toml -r config releasewatch
