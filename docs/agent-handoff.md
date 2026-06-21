@@ -62,10 +62,12 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `467e93e` - `chore: add container and ci foundation`
 - `8591cce` - `ci: load bandit config`
 - `2854f1f` - `docs: add foundation setup guidance`
+- `14b4bcc` - `docs: add domain model plan`
+- `306ee07` - `docs: tighten domain model plan`
 
 ## Next Required Step
 
-Write and review the domain model implementation plan before adding production domain models.
+Continue with Task 1 in docs/superpowers/plans/2026-06-21-domain-models-plan.md.
 
 ## Open Questions
 
