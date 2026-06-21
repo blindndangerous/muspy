@@ -4,7 +4,7 @@ Last updated: 2026-06-21
 
 ## Current Phase
 
-Brainstorming/design. No modern application code has been written.
+Foundation scaffold.
 
 ## Repository
 
@@ -58,11 +58,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 
 ## Next Required Step
 
-User must review and approve the foundation implementation plan:
-
-1. `docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md`
-2. After approval, choose execution mode: subagent-driven or inline execution.
-3. Do not start coding until the user chooses execution mode.
+Continue with Task 2 in docs/superpowers/plans/2026-06-21-muspy-modernization-plan.md.
 
 ## Open Questions
 
