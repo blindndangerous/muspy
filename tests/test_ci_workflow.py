@@ -33,6 +33,7 @@ def test_ci_workflow_pins_actions_and_sets_env():
     assert "actions/checkout@v6" in workflow
     assert "astral-sh/setup-uv@v8.2.0" in workflow
     assert "astral-sh/setup-uv@v8\n" not in workflow
+    assert 'version: "0.11.23"' in workflow
     assert "DEBUG: \"1\"" in workflow
     assert "SECRET_KEY: ci-secret" in workflow
     assert "ALLOWED_HOSTS: localhost,127.0.0.1" in workflow

@@ -137,7 +137,15 @@ Latest full verification:
 - Podman CLI 5.8.1 installed with Chocolatey.
 - Podman machine `podman-machine-default` exists and was started.
 - Docker Compose v5.1.4 installed with Winget as Podman Compose provider. Current shell may need this path prepended until restarted: `C:\Users\blind\AppData\Local\Microsoft\WinGet\Packages\Docker.DockerCompose_Microsoft.Winget.Source_8wekyb3d8bbwe`.
+- Project now requires `uv>=0.11.23` through `[tool.uv].required-version`.
+- CI pins `astral-sh/setup-uv@v8.2.0` with `version: "0.11.23"`.
+- Containerfile pins `ghcr.io/astral-sh/uv:0.11.23-python3.14-trixie-slim`.
 - `uv` on PATH resolves to Chocolatey `0.11.18`; Chocolatey reports `0.11.23` available but non-admin upgrade fails on `C:\ProgramData\chocolatey`.
+- `uv self update` on the Chocolatey binary fails because self-update only works for standalone installer binaries.
 - Latest local uv is `C:\Users\blind\.local\bin\uv.exe` at `0.11.23`; use that explicit path until Chocolatey uv is upgraded from an elevated shell or PATH precedence changes.
 - Latest lock refresh command run with local uv `0.11.23`: `C:\Users\blind\.local\bin\uv.exe lock --upgrade`. It resolved successfully and produced no `uv.lock` diff.
+- `C:\Users\blind\.local\bin\uv.exe lock --check`: passed.
+- `uv lock --check` with PATH Chocolatey `0.11.18`: fails fast with required-version error.
+- `C:\Users\blind\.local\bin\uv.exe run pytest tests/test_quality_config.py tests/test_ci_workflow.py tests/test_container_files.py -q`: 19 passed.
+- `C:\Users\blind\.local\bin\uv.exe run ruff check tests/test_quality_config.py tests/test_ci_workflow.py tests/test_container_files.py`: passed.
 - `git status --short --untracked-files=all`

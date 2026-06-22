@@ -12,6 +12,12 @@ def test_coverage_floor_is_ratcheted_to_current_level():
     assert config["tool"]["coverage"]["report"]["fail_under"] == 96
 
 
+def test_uv_tooling_requires_current_uv_version():
+    config = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    assert config["tool"]["uv"]["required-version"] == ">=0.11.23"
+
+
 def test_httpx_is_project_dependency():
     config = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
 

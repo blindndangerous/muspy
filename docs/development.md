@@ -5,7 +5,7 @@ Use this setup for the modern Muspy fork. The legacy application under
 
 ## Requirements
 
-- `uv`
+- `uv` 0.11.23 or newer
 - Python 3.14, managed by `uv`
 - PostgreSQL 18, or Podman Compose or Docker Compose for a containerized
   PostgreSQL 18 database
@@ -19,6 +19,11 @@ winget install --id Docker.DockerCompose --accept-source-agreements --accept-pac
 podman machine init
 podman machine start
 ```
+
+On Windows, check `where uv` if `uv` reports a version error. A Chocolatey
+shim can appear before the standalone installer on `PATH`. Use the standalone
+installer or upgrade the Chocolatey package from an elevated shell so
+`uv --version` reports at least 0.11.23.
 
 ## Local setup
 

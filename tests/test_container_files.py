@@ -95,6 +95,7 @@ def test_compose_wires_database_health_env_and_web_port():
 def test_containerfile_uses_locked_uv_workflow():
     containerfile = read_project_file("Containerfile")
 
+    assert "ghcr.io/astral-sh/uv:0.11.23-python3.14-trixie-slim" in containerfile
     assert "uv sync --locked" in containerfile
     assert "uv.lock" in containerfile
     assert "pyproject.toml" in containerfile

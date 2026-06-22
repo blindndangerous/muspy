@@ -23,7 +23,7 @@ Useful project docs:
 
 ## Quick start
 
-Install `uv`, then install dependencies:
+Install `uv` 0.11.23 or newer, then install dependencies:
 
 ```sh
 uv sync --locked --all-extras --dev
