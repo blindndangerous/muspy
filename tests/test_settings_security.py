@@ -43,6 +43,12 @@ def test_get_secret_key_prefers_env_secret(monkeypatch):
     assert app_settings._get_secret_key(debug=False, running_tests=False) == "real-secret"
 
 
+def test_running_tests_detects_pytest_loaded_by_coverage(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", ["coverage", "tests/test_settings_security.py"])
+
+    assert app_settings._running_tests() is True
+
+
 def test_database_uses_postgresql_by_default():
     assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
 
@@ -50,3 +56,11 @@ def test_database_uses_postgresql_by_default():
 def test_secure_cookie_settings_follow_debug_mode():
     assert settings.SESSION_COOKIE_SECURE is (not settings.DEBUG)
     assert settings.CSRF_COOKIE_SECURE is (not settings.DEBUG)
+
+
+def test_upstream_client_settings_have_safe_defaults():
+    assert settings.UPSTREAM_HTTP_TIMEOUT_SECONDS == 10
+    assert settings.UPSTREAM_USER_AGENT.startswith("muspy/")
+    assert "example.invalid" in settings.UPSTREAM_CONTACT
+    assert settings.LASTFM_API_KEY == ""
+    assert settings.LASTFM_API_SECRET == ""

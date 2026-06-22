@@ -17,7 +17,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def _running_tests() -> bool:
-    return any("pytest" in Path(arg).name for arg in sys.argv)
+    return "pytest" in sys.modules or any("pytest" in Path(arg).name for arg in sys.argv)
 
 
 def _running_plain_system_check() -> bool:
@@ -122,6 +122,15 @@ EMAIL_BACKEND = os.environ.get(
     "django.core.mail.backends.console.EmailBackend",
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "muspy@example.test")
+
+UPSTREAM_HTTP_TIMEOUT_SECONDS = int(os.environ.get("UPSTREAM_HTTP_TIMEOUT_SECONDS", "10"))
+UPSTREAM_CONTACT = os.environ.get("UPSTREAM_CONTACT", "https://example.invalid/contact")
+UPSTREAM_USER_AGENT = os.environ.get(
+    "UPSTREAM_USER_AGENT",
+    f"muspy/{os.environ.get('MUSPY_VERSION', '0.1.0')} ({UPSTREAM_CONTACT})",
+)
+LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "")
+LASTFM_API_SECRET = os.environ.get("LASTFM_API_SECRET", "")
 
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
