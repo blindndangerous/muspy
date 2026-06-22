@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -41,16 +41,20 @@ def apply_imported_artists(
     *,
     run: ImportRun,
     imported_artists: Iterable[ImportedArtist],
+    name_matcher: Callable[[ImportedArtist], Artist | None] | None = None,
 ) -> ImportResult:
     created_count = 0
     updated_count = 0
     with transaction.atomic():
         locked_run = ImportRun.objects.select_for_update().get(pk=run.pk)
         for imported_artist in imported_artists:
+            source_identifier = _source_identifier_for_imported(imported_artist)
             artist = _artist_for_imported(imported_artist)
+            if artist is None and name_matcher is not None:
+                artist = name_matcher(imported_artist)
             _, created = ImportCandidate.objects.update_or_create(
                 import_run=locked_run,
-                source_identifier=imported_artist.source_identifier,
+                source_identifier=source_identifier,
                 defaults={
                     "artist": artist,
                     "source_name": imported_artist.source_name,
@@ -76,45 +80,71 @@ def mark_import_failed(*, run: ImportRun, message: str) -> None:
 
 def accept_import_candidate(*, candidate: ImportCandidate, user) -> Follow:
     _ensure_candidate_owner(candidate=candidate, user=user)
-    if candidate.artist is None:
-        raise ValueError("Import candidate has no matched artist.")
-    follow, _ = Follow.objects.update_or_create(
-        user=user,
-        artist=candidate.artist,
-        defaults={"is_ignored": False},
-    )
-    candidate.review_state = ImportCandidate.ReviewState.ACCEPTED
-    candidate.reviewed_at = timezone.now()
-    candidate.save(update_fields=["review_state", "reviewed_at"])
+    with transaction.atomic():
+        locked_candidate = ImportCandidate.objects.select_for_update().get(pk=candidate.pk)
+        if locked_candidate.artist is None:
+            raise ValueError("Import candidate has no matched artist.")
+        follow, _ = Follow.objects.update_or_create(
+            user=user,
+            artist=locked_candidate.artist,
+            defaults={"is_ignored": False},
+        )
+        locked_candidate.review_state = ImportCandidate.ReviewState.ACCEPTED
+        locked_candidate.reviewed_at = timezone.now()
+        locked_candidate.save(update_fields=["review_state", "reviewed_at"])
+    candidate.refresh_from_db()
     return follow
 
 
 def ignore_import_candidate(*, candidate: ImportCandidate, user) -> Follow | None:
     _ensure_candidate_owner(candidate=candidate, user=user)
     follow = None
-    if candidate.artist is not None:
-        follow, _ = Follow.objects.update_or_create(
-            user=user,
-            artist=candidate.artist,
-            defaults={"is_ignored": True},
-        )
-    candidate.review_state = ImportCandidate.ReviewState.IGNORED
-    candidate.reviewed_at = timezone.now()
-    candidate.save(update_fields=["review_state", "reviewed_at"])
+    with transaction.atomic():
+        locked_candidate = ImportCandidate.objects.select_for_update().get(pk=candidate.pk)
+        if locked_candidate.artist is not None:
+            follow, _ = Follow.objects.update_or_create(
+                user=user,
+                artist=locked_candidate.artist,
+                defaults={"is_ignored": True},
+            )
+        locked_candidate.review_state = ImportCandidate.ReviewState.IGNORED
+        locked_candidate.reviewed_at = timezone.now()
+        locked_candidate.save(update_fields=["review_state", "reviewed_at"])
+    candidate.refresh_from_db()
     return follow
+
+
+def reject_import_candidate(*, candidate: ImportCandidate, user) -> None:
+    _ensure_candidate_owner(candidate=candidate, user=user)
+    with transaction.atomic():
+        locked_candidate = ImportCandidate.objects.select_for_update().get(pk=candidate.pk)
+        locked_candidate.review_state = ImportCandidate.ReviewState.REJECTED
+        locked_candidate.reviewed_at = timezone.now()
+        locked_candidate.save(update_fields=["review_state", "reviewed_at"])
+    candidate.refresh_from_db()
 
 
 def _artist_for_imported(imported_artist: ImportedArtist) -> Artist | None:
     if not imported_artist.mbid:
         return None
+    try:
+        mbid = UUID(imported_artist.mbid)
+    except ValueError:
+        return None
     artist, _ = Artist.objects.update_or_create(
-        mbid=UUID(imported_artist.mbid),
+        mbid=mbid,
         defaults={
             "name": imported_artist.source_name,
             "raw_payload": imported_artist.raw_payload,
         },
     )
     return artist
+
+
+def _source_identifier_for_imported(imported_artist: ImportedArtist) -> str:
+    if imported_artist.source_identifier:
+        return imported_artist.source_identifier
+    return f"name:{imported_artist.source_name.casefold()}"
 
 
 def _plain_text_names(text: str) -> list[str]:
