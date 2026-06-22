@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from releasewatch.imports import (
     accept_import_candidate,
@@ -488,10 +489,29 @@ def test_import_provider_account_marks_failed_when_provider_import_fails(mocker)
 @pytest.mark.django_db
 def test_enqueue_due_provider_imports_enqueues_active_accounts(mocker):
     user = create_user("scanner-user")
-    account = ProviderAccount.objects.create(
+    newest = ProviderAccount.objects.create(
         user=user,
         provider=ProviderAccount.Provider.LASTFM,
-        external_username="listener",
+        external_username="newest",
+        last_imported_at=timezone.now(),
+    )
+    never_imported = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="never-imported",
+        last_imported_at=None,
+    )
+    oldest = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="oldest",
+        last_imported_at=timezone.now() - timezone.timedelta(days=30),
+    )
+    ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="revoked",
+        status=ProviderAccount.Status.REVOKED,
     )
 
     from releasewatch.tasks import enqueue_due_provider_imports
@@ -500,5 +520,9 @@ def test_enqueue_due_provider_imports_enqueues_active_accounts(mocker):
 
     count = enqueue_due_provider_imports(batch_size=10)
 
-    assert count == 1
-    delay.assert_called_once_with(account.id)
+    assert count == 3
+    assert [call.args[0] for call in delay.call_args_list] == [
+        never_imported.id,
+        oldest.id,
+        newest.id,
+    ]
