@@ -4,7 +4,7 @@ Last updated: 2026-06-22
 
 ## Current Phase
 
-Sync/import workflow design in progress. Upstream clients complete. Domain models complete.
+Task infrastructure and import workflow plan in progress. Sync/import workflow design complete. Upstream clients complete. Domain models complete.
 
 ## Repository
 
@@ -91,10 +91,11 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 - `c416a27` - `fix: harden lastfm payload handling`
 - `cae176c` - `fix: clean smoke warnings and podman db mount`
 - `f5327ab` - `test: ratchet coverage floor to 96`
+- `dcc7141` - `docs: add sync import workflow design`
 
 ## Next Required Step
 
-Review `docs/superpowers/specs/2026-06-22-sync-import-workflows-design.md`, then write implementation plan 1 for task infrastructure and import workflow.
+Review `docs/superpowers/plans/2026-06-22-task-import-workflows-plan.md`, then execute with subagent-driven development.
 
 ## Open Questions
 
@@ -136,4 +137,7 @@ Latest full verification:
 - Podman CLI 5.8.1 installed with Chocolatey.
 - Podman machine `podman-machine-default` exists and was started.
 - Docker Compose v5.1.4 installed with Winget as Podman Compose provider. Current shell may need this path prepended until restarted: `C:\Users\blind\AppData\Local\Microsoft\WinGet\Packages\Docker.DockerCompose_Microsoft.Winget.Source_8wekyb3d8bbwe`.
+- `uv` on PATH resolves to Chocolatey `0.11.18`; Chocolatey reports `0.11.23` available but non-admin upgrade fails on `C:\ProgramData\chocolatey`.
+- Latest local uv is `C:\Users\blind\.local\bin\uv.exe` at `0.11.23`; use that explicit path until Chocolatey uv is upgraded from an elevated shell or PATH precedence changes.
+- Latest lock refresh command run with local uv `0.11.23`: `C:\Users\blind\.local\bin\uv.exe lock --upgrade`. It resolved successfully and produced no `uv.lock` diff.
 - `git status --short --untracked-files=all`
