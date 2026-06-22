@@ -216,3 +216,65 @@ def test_sync_artist_releases_records_rate_limit_failure_and_retry_time():
     assert sync_state.last_failed_at is not None
     assert sync_state.retry_after > timezone.now()
     assert "musicbrainz rate limited" in sync_state.error_message
+
+
+@pytest.mark.django_db
+def test_sync_artist_releases_closes_owned_client(monkeypatch):
+    class OwnedClient(FakeMusicBrainzClient):
+        instances = []
+
+        def __init__(self):
+            super().__init__(release_groups=[], releases_by_group={})
+            self.instances.append(self)
+
+    artist = Artist.objects.create(mbid=uuid4(), name="Fugazi")
+    monkeypatch.setattr("releasewatch.sync.MusicBrainzClient", OwnedClient)
+
+    from releasewatch.sync import sync_artist_releases
+
+    result = sync_artist_releases(artist=artist)
+
+    assert result.event_ids == ()
+    assert OwnedClient.instances[0].closed is True
+
+
+@pytest.mark.django_db
+def test_sync_artist_releases_skips_invalid_release_groups_and_undated_fallbacks():
+    artist = Artist.objects.create(mbid=uuid4(), name="Fugazi")
+    group_mbid = uuid4()
+    client = FakeMusicBrainzClient(
+        release_groups=[
+            release_group_payload("not-a-uuid"),
+            release_group_payload(group_mbid, first_release_date=None),
+        ],
+        releases_by_group={str(group_mbid): [[]]},
+    )
+
+    from releasewatch.sync import sync_artist_releases
+
+    result = sync_artist_releases(artist=artist, client=client)
+
+    assert result.skipped_count == 1
+    assert result.events_created == 0
+    assert ReleaseGroup.objects.count() == 1
+    assert ReleaseEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_sync_artist_releases_records_non_rate_limit_failure_without_retry_time():
+    class FailingClient(FakeMusicBrainzClient):
+        def browse_release_groups(self, artist_mbid, *, limit=100, offset=0):
+            raise RuntimeError("musicbrainz unavailable")
+
+    artist = Artist.objects.create(mbid=uuid4(), name="Fugazi")
+    client = FailingClient(release_groups=[], releases_by_group={})
+
+    from releasewatch.sync import ReleaseSyncError, sync_artist_releases
+
+    with pytest.raises(ReleaseSyncError):
+        sync_artist_releases(artist=artist, client=client)
+
+    sync_state = SyncState.objects.get(artist=artist, sync_type=SyncState.SyncType.RELEASES)
+    assert sync_state.status == SyncState.Status.FAILED
+    assert sync_state.retry_after is None
+    assert sync_state.error_message == "musicbrainz unavailable"

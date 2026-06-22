@@ -97,6 +97,18 @@ Run an imports worker on bare metal:
 uv run celery -A config worker -Q imports --loglevel=info
 ```
 
+Run a release sync worker on bare metal:
+
+```sh
+uv run celery -A config worker -Q sync --loglevel=info
+```
+
+Run a notification fanout worker on bare metal:
+
+```sh
+uv run celery -A config worker -Q notifications --loglevel=info
+```
+
 ## Tests and checks
 
 Run a targeted pytest file:

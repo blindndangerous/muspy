@@ -142,3 +142,32 @@ def test_enqueue_due_artist_syncs_enqueues_old_success_and_due_failure_in_order(
         due_failure.id,
         old_success.id,
     ]
+
+
+def test_take_unique_ids_deduplicates_and_stops_at_batch_size():
+    from releasewatch.tasks import _take_unique_ids
+
+    assert _take_unique_ids([1, 2], [2, 3], batch_size=2) == [1, 2]
+
+
+@pytest.mark.django_db
+def test_artist_release_sync_due_handles_retry_without_retry_after_and_unsucceeded_state():
+    retry_artist = Artist.objects.create(mbid=uuid4(), name="Retry now")
+    never_succeeded = Artist.objects.create(mbid=uuid4(), name="Never succeeded")
+    SyncState.objects.create(
+        artist=retry_artist,
+        sync_type=SyncState.SyncType.RELEASES,
+        status=SyncState.Status.FAILED,
+        retry_after=None,
+    )
+    SyncState.objects.create(
+        artist=never_succeeded,
+        sync_type=SyncState.SyncType.RELEASES,
+        status=SyncState.Status.STARTED,
+        last_succeeded_at=None,
+    )
+
+    from releasewatch.tasks import _artist_release_sync_due
+
+    assert _artist_release_sync_due(retry_artist) is True
+    assert _artist_release_sync_due(never_succeeded) is True

@@ -262,6 +262,34 @@ def test_browse_releases_by_release_group_maps_date_status_country_and_media_for
     assert releases[0].raw_payload["release-group"]["id"] == RELEASE_GROUP_MBID
 
 
+def test_browse_releases_by_release_group_defaults_missing_media_format_to_blank():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "releases": [
+                    {
+                        "id": RELEASE_MBID,
+                        "country": "US",
+                        "date": "1990",
+                        "status": "Official",
+                        "media": [{}],
+                    }
+                ]
+            },
+        )
+
+    client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
+    )
+
+    release = client.browse_releases_by_release_group(RELEASE_GROUP_MBID)[0]
+
+    assert release.media_format == ""
+
+
 def test_musicbrainz_maps_503_to_rate_limited():
     def handler(request):
         return httpx.Response(503, json={"error": "rate limited"})

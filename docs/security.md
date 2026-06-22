@@ -39,3 +39,7 @@ Do not use `SECRET_KEY` as the provider token key.
 
 Celery task arguments must contain database IDs only. Do not pass provider
 tokens, API keys, raw payloads, or signed URLs through the broker.
+
+Release sync stores MusicBrainz payloads after normal payload redaction. Keep
+sync and notification fanout tasks ID-only: pass artist IDs and release event
+IDs, not payloads or user data.
