@@ -100,3 +100,15 @@ def test_task_infrastructure_settings_have_production_defaults(settings):
     assert settings.CELERY_ACCEPT_CONTENT == ["json"]
     assert settings.REDIS_URL.startswith("redis://")
     assert settings.PROVIDER_TOKEN_ENCRYPTION_KEY == ""
+
+
+def test_celery_broker_url_requires_env_outside_debug_or_tests(monkeypatch):
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
+
+    with pytest.raises(ImproperlyConfigured, match="CELERY_BROKER_URL"):
+        app_settings._env_required(
+            "CELERY_BROKER_URL",
+            default="amqp://guest:guest@localhost:5672//",
+            debug=False,
+            running_tests=False,
+        )

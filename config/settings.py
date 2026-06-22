@@ -32,6 +32,27 @@ def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
     return value
 
 
+def _env_required(
+    name: str,
+    *,
+    default: str,
+    debug: bool,
+    running_tests: bool | None = None,
+    running_plain_system_check: bool = False,
+) -> str:
+    value = os.environ.get(name)
+    if value:
+        return value
+
+    if running_tests is None:
+        running_tests = _running_tests()
+
+    if debug or running_tests or running_plain_system_check:
+        return default
+
+    raise ImproperlyConfigured(f"{name} environment variable must be set when DEBUG is false.")
+
+
 def _running_tests() -> bool:
     return any("pytest" in Path(arg).name for arg in sys.argv)
 
@@ -154,9 +175,11 @@ UPSTREAM_USER_AGENT = os.environ.get(
 LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "")
 LASTFM_API_SECRET = os.environ.get("LASTFM_API_SECRET", "")
 
-CELERY_BROKER_URL = os.environ.get(
+CELERY_BROKER_URL = _env_required(
     "CELERY_BROKER_URL",
-    "amqp://guest:guest@localhost:5672//",
+    default="amqp://guest:guest@localhost:5672//",
+    debug=DEBUG,
+    running_plain_system_check=_running_plain_system_check(),
 )
 CELERY_TASK_DEFAULT_QUEUE = "maintenance"
 CELERY_TASK_IGNORE_RESULT = True

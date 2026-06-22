@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
+UV_LOCK = ROOT / "uv.lock"
 
 
 def test_coverage_floor_is_ratcheted_to_current_level():
@@ -25,3 +26,13 @@ def test_task_infrastructure_dependencies_are_locked():
     assert "django-celery-beat>=2.9,<3.0" in dependencies
     assert "redis>=8.0,<9.0" in dependencies
     assert "cryptography>=49.0,<50.0" in dependencies
+
+
+def test_task_infrastructure_lockfile_pins_runtime_packages():
+    lock = tomllib.loads(UV_LOCK.read_text(encoding="utf-8"))
+    packages = {package["name"]: package["version"] for package in lock["package"]}
+
+    assert packages["celery"] == "5.6.3"
+    assert packages["django-celery-beat"] == "2.9.0"
+    assert packages["redis"] == "8.0.0"
+    assert packages["cryptography"] == "49.0.0"
