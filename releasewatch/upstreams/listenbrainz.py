@@ -13,6 +13,7 @@ from releasewatch.upstreams.base import (
     UpstreamClient,
     UpstreamRateLimited,
     UpstreamResponseMetadata,
+    UpstreamUnavailable,
 )
 
 
@@ -28,6 +29,7 @@ class ListenBrainzClient(UpstreamClient):
         throttle: FixedIntervalThrottle | LockedThrottle | None = None,
     ) -> None:
         self.last_response_metadata: UpstreamResponseMetadata | None = None
+        self._active_auth_token: str | None = None
         super().__init__(
             base_url=self.base_url,
             user_agent=user_agent or settings.UPSTREAM_USER_AGENT,
@@ -45,12 +47,21 @@ class ListenBrainzClient(UpstreamClient):
         count: int = 100,
         offset: int = 0,
     ) -> list[ImportedArtist]:
+        self.last_response_metadata = None
         _validate_pagination(count=count, offset=offset)
-        payload = self.get_json(
-            f"/1/stats/user/{quote(username, safe='')}/artists",
-            params={"count": count, "offset": offset},
-            headers={"Authorization": f"Token {token}"},
-        )
+        self._active_auth_token = token
+        try:
+            payload = self.get_json(
+                f"/1/stats/user/{quote(username, safe='')}/artists",
+                params={"count": count, "offset": offset},
+                headers={"Authorization": f"Token {token}"},
+            )
+        except UpstreamUnavailable as exc:
+            if exc.status_code == 204:
+                return []
+            raise
+        finally:
+            self._active_auth_token = None
         artists = payload.get("payload", {}).get("artists", [])
         return [_imported_artist_from_payload(artist) for artist in artists]
 
@@ -62,21 +73,35 @@ class ListenBrainzClient(UpstreamClient):
         )
 
     def _error_for_response(self, response: httpx.Response):
+        payload = _response_payload(response)
+        if self._active_auth_token:
+            payload = _redact_auth_token(payload, self._active_auth_token)
+
         if response.status_code != 429:
-            return super()._error_for_response(response)
+            exception_type = self._exception_type_for_status(response.status_code)
+            return exception_type(
+                f"{self.provider} returned HTTP {response.status_code}",
+                provider=self.provider,
+                status_code=response.status_code,
+                payload=payload,
+            )
 
         return UpstreamRateLimited(
             "listenbrainz returned HTTP 429",
             provider=self.provider,
             status_code=response.status_code,
             payload=_payload_with_rate_limit(
-                _response_payload(response),
+                payload,
                 self.last_response_metadata,
             ),
         )
 
 
 def _validate_pagination(*, count: int, offset: int) -> None:
+    if type(count) is not int:
+        raise ValueError("count must be an integer")
+    if type(offset) is not int:
+        raise ValueError("offset must be an integer")
     if not 1 <= count <= 1000:
         raise ValueError("count must be between 1 and 1000")
     if offset < 0:
@@ -106,9 +131,12 @@ def _parse_rate_limit_header(response: httpx.Response, header_name: str) -> int 
     if value is None:
         return None
     try:
-        return int(value)
+        parsed_value = int(value)
     except ValueError:
         return None
+    if parsed_value < 0:
+        return None
+    return parsed_value
 
 
 def _payload_with_rate_limit(
@@ -132,3 +160,13 @@ def _response_payload(response: httpx.Response):
         return response.json()
     except ValueError:
         return {"body": "[invalid json]"}
+
+
+def _redact_auth_token(payload: Any, token: str) -> Any:
+    if isinstance(payload, dict):
+        return {key: _redact_auth_token(value, token) for key, value in payload.items()}
+    if isinstance(payload, list):
+        return [_redact_auth_token(item, token) for item in payload]
+    if isinstance(payload, str):
+        return payload.replace(token, "[redacted]")
+    return payload

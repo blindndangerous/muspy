@@ -7,6 +7,7 @@ from releasewatch.upstreams.base import (
     UpstreamAuthError,
     UpstreamRateLimited,
     UpstreamResponseMetadata,
+    UpstreamUnavailable,
 )
 from releasewatch.upstreams.listenbrainz import ListenBrainzClient
 
@@ -52,6 +53,22 @@ def test_get_user_artists_sends_authenticated_request_with_count_and_offset():
     }
 
 
+def test_get_user_artists_url_encodes_username_path_segments():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"payload": {"artists": []}})
+
+    client = _client_for(handler)
+
+    assert client.get_user_artists("listener name/with slash", "secret-token") == []
+    assert (
+        seen["url"]
+        == "https://api.listenbrainz.org/1/stats/user/listener%20name%2Fwith%20slash/artists?count=100&offset=0"
+    )
+
+
 def test_get_user_artists_parses_rate_limit_headers_into_response_metadata():
     def handler(request):
         return httpx.Response(
@@ -68,6 +85,50 @@ def test_get_user_artists_parses_rate_limit_headers_into_response_metadata():
 
     client.get_user_artists("listener", "secret-token")
 
+    assert client.last_response_metadata == UpstreamResponseMetadata(
+        limit=300,
+        remaining=299,
+        reset_in_seconds=42,
+    )
+
+
+def test_get_user_artists_parses_invalid_or_negative_rate_limit_headers_as_none():
+    def handler(request):
+        return httpx.Response(
+            200,
+            headers={
+                "X-RateLimit-Limit": "-1",
+                "X-RateLimit-Remaining": "invalid",
+                "X-RateLimit-Reset-In": "-42",
+            },
+            json={"payload": {"artists": []}},
+        )
+
+    client = _client_for(handler)
+
+    client.get_user_artists("listener", "secret-token")
+
+    assert client.last_response_metadata == UpstreamResponseMetadata(
+        limit=None,
+        remaining=None,
+        reset_in_seconds=None,
+    )
+
+
+def test_get_user_artists_returns_empty_list_for_no_content_response():
+    def handler(request):
+        return httpx.Response(
+            204,
+            headers={
+                "X-RateLimit-Limit": "300",
+                "X-RateLimit-Remaining": "299",
+                "X-RateLimit-Reset-In": "42",
+            },
+        )
+
+    client = _client_for(handler)
+
+    assert client.get_user_artists("listener", "secret-token") == []
     assert client.last_response_metadata == UpstreamResponseMetadata(
         limit=300,
         remaining=299,
@@ -155,12 +216,35 @@ def test_get_user_artists_maps_429_to_rate_limited_with_reset_seconds():
     assert client.last_response_metadata.reset_in_seconds == 17
 
 
+def test_get_user_artists_redacts_token_echoed_in_rate_limit_error_body():
+    auth_value = "listenbrainz-redaction-sentinel"
+
+    def handler(request):
+        return httpx.Response(
+            429,
+            json={"error": f"rate limited for Token {auth_value}", "detail": auth_value},
+        )
+
+    client = _client_for(handler)
+
+    with pytest.raises(UpstreamRateLimited) as exc_info:
+        client.get_user_artists("listener", auth_value)
+
+    assert auth_value not in str(exc_info.value.payload)
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
         {"count": 0},
         {"count": 1001},
         {"offset": -1},
+        {"count": True},
+        {"count": 1.5},
+        {"count": "100"},
+        {"offset": False},
+        {"offset": 1.5},
+        {"offset": "0"},
     ],
 )
 def test_get_user_artists_rejects_invalid_count_and_offset(kwargs):
@@ -168,6 +252,34 @@ def test_get_user_artists_rejects_invalid_count_and_offset(kwargs):
 
     with pytest.raises(ValueError):
         client.get_user_artists("listener", "secret-token", **kwargs)
+
+
+def test_get_user_artists_clears_stale_metadata_before_request_error():
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                headers={"X-RateLimit-Reset-In": "17"},
+                json={"payload": {"artists": []}},
+            )
+        raise httpx.ConnectError("network down", request=request)
+
+    client = _client_for(handler)
+    client.get_user_artists("listener", "secret-token")
+    assert client.last_response_metadata == UpstreamResponseMetadata(
+        limit=None,
+        remaining=None,
+        reset_in_seconds=17,
+    )
+
+    with pytest.raises(UpstreamUnavailable):
+        client.get_user_artists("listener", "secret-token")
+
+    assert client.last_response_metadata is None
 
 
 def test_imported_artist_raw_payload_is_deep_copied_before_storage():
