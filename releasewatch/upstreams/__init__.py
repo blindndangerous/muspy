@@ -15,12 +15,14 @@ from releasewatch.upstreams.base import (
     parse_partial_date,
     redact_upstream_payload,
 )
+from releasewatch.upstreams.lastfm import LastFmClient
 from releasewatch.upstreams.listenbrainz import ListenBrainzClient
 from releasewatch.upstreams.musicbrainz import MusicBrainzClient
 
 __all__ = [
     "FixedIntervalThrottle",
     "ImportedArtist",
+    "LastFmClient",
     "ListenBrainzClient",
     "MusicBrainzClient",
     "UpstreamArtist",
