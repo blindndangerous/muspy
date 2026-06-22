@@ -380,13 +380,15 @@ def test_artist_raw_payload_is_copied_before_storage():
         "id": ARTIST_MBID,
         "name": "Fugazi",
         "sort-name": "Fugazi",
-        "aliases": [],
+        "aliases": [{"name": "Nested"}],
     }
 
     artist = _artist_from_payload(payload)
     payload["name"] = "Changed"
+    payload["aliases"][0]["name"] = "Changed nested"
 
     assert artist.raw_payload["name"] == "Fugazi"
+    assert artist.raw_payload["aliases"][0]["name"] == "Nested"
 
 
 def test_release_group_raw_payload_is_copied_before_storage():
@@ -394,11 +396,16 @@ def test_release_group_raw_payload_is_copied_before_storage():
         "id": RELEASE_GROUP_MBID,
         "title": "Repeater",
         "primary-type": "Album",
-        "secondary-types": [],
+        "secondary-types": ["Compilation"],
+        "nested": {"value": "kept"},
         "first-release-date": "1990",
     }
 
     release_group = _release_group_from_payload(payload)
     payload["title"] = "Changed"
+    payload["secondary-types"].append("Changed nested")
+    payload["nested"]["value"] = "Changed nested"
 
     assert release_group.raw_payload["title"] == "Repeater"
+    assert release_group.raw_payload["secondary-types"] == ["Compilation"]
+    assert release_group.raw_payload["nested"] == {"value": "kept"}

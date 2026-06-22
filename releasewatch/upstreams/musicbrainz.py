@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -25,7 +26,7 @@ class MusicBrainzClient(UpstreamClient):
         user_agent: str | None = None,
         http_client: httpx.Client | None = None,
         timeout: httpx.Timeout | float | None = None,
-        throttle: FixedIntervalThrottle | None = None,
+        throttle: FixedIntervalThrottle | LockedThrottle | None = None,
     ) -> None:
         super().__init__(
             base_url=self.base_url,
@@ -109,7 +110,7 @@ def _artist_from_payload(payload: dict[str, Any]) -> UpstreamArtist:
         artist_type=payload.get("type", ""),
         country=payload.get("country", ""),
         aliases=[_alias_from_payload(alias) for alias in payload.get("aliases", [])],
-        raw_payload=payload.copy(),
+        raw_payload=deepcopy(payload),
     )
 
 
@@ -134,5 +135,5 @@ def _release_group_from_payload(payload: dict[str, Any]) -> UpstreamReleaseGroup
         secondary_types=list(payload.get("secondary-types", [])),
         first_release_date=first_release_date,
         first_release_precision=first_release_precision,
-        raw_payload=payload.copy(),
+        raw_payload=deepcopy(payload),
     )
