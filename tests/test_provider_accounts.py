@@ -1,9 +1,17 @@
 import pytest
+from cryptography.fernet import Fernet
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError
+from django.test import override_settings
 
 from releasewatch.models import ProviderAccount
+from releasewatch.provider_tokens import (
+    decrypt_provider_token,
+    encrypt_provider_token,
+    redact_provider_secrets,
+)
 
 
 def create_user(username="provider-user"):
@@ -74,3 +82,34 @@ def test_provider_account_is_registered_without_token_search():
     assert "token_encrypted" not in model_admin.search_fields
     assert "token_encrypted" not in model_admin.list_display
     assert "token_encrypted" in model_admin.exclude
+
+
+@override_settings(PROVIDER_TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode())
+def test_provider_token_round_trips_without_plaintext_storage():
+    encrypted = encrypt_provider_token("listenbrainz-token")
+
+    assert encrypted != "listenbrainz-token"
+    assert "listenbrainz-token" not in encrypted
+    assert decrypt_provider_token(encrypted) == "listenbrainz-token"
+
+
+@override_settings(PROVIDER_TOKEN_ENCRYPTION_KEY="")
+def test_encrypt_provider_token_requires_key():
+    with pytest.raises(ImproperlyConfigured):
+        encrypt_provider_token("listenbrainz-token")
+
+
+def test_redact_provider_secrets_removes_nested_values():
+    payload = {
+        "token": "listenbrainz-token",
+        "nested": ["api-key", {"secret": "lastfm-secret"}],
+    }
+
+    redacted = redact_provider_secrets(
+        payload,
+        secret_values=["listenbrainz-token", "api-key", "lastfm-secret"],
+    )
+
+    assert "listenbrainz-token" not in str(redacted)
+    assert "api-key" not in str(redacted)
+    assert "lastfm-secret" not in str(redacted)
