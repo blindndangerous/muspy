@@ -167,6 +167,50 @@ def test_imported_artist_long_fields_are_clamped_to_model_limits():
 
 
 @pytest.mark.django_db
+def test_imported_artist_with_valid_mbid_clamps_artist_name_to_model_limit():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+    mbid = uuid4()
+
+    apply_imported_artists(
+        run=run,
+        imported_artists=[
+            ImportedArtist(
+                "Long " + ("Artist" * 100),
+                "lastfm:long",
+                str(mbid),
+                {"name": "long"},
+            )
+        ],
+    )
+
+    artist = Artist.objects.get(mbid=mbid)
+    assert len(artist.name) == 255
+
+
+@pytest.mark.django_db
+def test_long_source_identifiers_with_same_prefix_stay_distinct():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+    shared_prefix = "provider:" + ("same-prefix" * 30)
+
+    apply_imported_artists(
+        run=run,
+        imported_artists=[
+            ImportedArtist("One", f"{shared_prefix}:one", "", {"name": "One"}),
+            ImportedArtist("Two", f"{shared_prefix}:two", "", {"name": "Two"}),
+        ],
+    )
+
+    identifiers = list(
+        run.candidates.order_by("source_name").values_list("source_identifier", flat=True)
+    )
+    assert len(identifiers) == 2
+    assert len(set(identifiers)) == 2
+    assert all(len(identifier) == 255 for identifier in identifiers)
+
+
+@pytest.mark.django_db
 def test_imported_artist_with_non_string_mbid_stays_pending_without_aborting_run():
     user = create_user()
     run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)

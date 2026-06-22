@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from uuid import UUID
@@ -7,6 +8,9 @@ from django.utils import timezone
 
 from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun
 from releasewatch.upstreams.base import ImportedArtist
+
+MAX_MODEL_STRING_LENGTH = 255
+IDENTIFIER_HASH_LENGTH = 12
 
 
 @dataclass(frozen=True)
@@ -134,7 +138,7 @@ def _artist_for_imported(imported_artist: ImportedArtist) -> Artist | None:
     artist, _ = Artist.objects.update_or_create(
         mbid=mbid,
         defaults={
-            "name": imported_artist.source_name,
+            "name": _clamp_model_string(imported_artist.source_name),
             "raw_payload": imported_artist.raw_payload,
         },
     )
@@ -143,11 +147,20 @@ def _artist_for_imported(imported_artist: ImportedArtist) -> Artist | None:
 
 def _source_identifier_for_imported(imported_artist: ImportedArtist) -> str:
     if imported_artist.source_identifier:
-        return _clamp_model_string(str(imported_artist.source_identifier))
-    return _clamp_model_string(f"name:{imported_artist.source_name.casefold()}")
+        return _bounded_identifier(str(imported_artist.source_identifier))
+    return _bounded_identifier(f"name:{imported_artist.source_name.casefold()}")
 
 
-def _clamp_model_string(value: str, *, max_length: int = 255) -> str:
+def _bounded_identifier(value: str, *, max_length: int = MAX_MODEL_STRING_LENGTH) -> str:
+    value = str(value)
+    if len(value) <= max_length:
+        return value
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:IDENTIFIER_HASH_LENGTH]
+    prefix_length = max_length - IDENTIFIER_HASH_LENGTH - 1
+    return f"{value[:prefix_length]}:{digest}"
+
+
+def _clamp_model_string(value: str, *, max_length: int = MAX_MODEL_STRING_LENGTH) -> str:
     return str(value)[:max_length]
 
 
