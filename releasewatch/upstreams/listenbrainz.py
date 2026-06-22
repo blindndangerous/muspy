@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import asdict
 from typing import Any
@@ -16,6 +17,8 @@ from releasewatch.upstreams.base import (
     UpstreamUnavailable,
 )
 
+_ACTIVE_AUTH_TOKEN: ContextVar[str | None] = ContextVar("listenbrainz_auth_token", default=None)
+
 
 class ListenBrainzClient(UpstreamClient):
     base_url = "https://api.listenbrainz.org"
@@ -29,7 +32,6 @@ class ListenBrainzClient(UpstreamClient):
         throttle: FixedIntervalThrottle | LockedThrottle | None = None,
     ) -> None:
         self.last_response_metadata: UpstreamResponseMetadata | None = None
-        self._active_auth_token: str | None = None
         super().__init__(
             base_url=self.base_url,
             user_agent=user_agent or settings.UPSTREAM_USER_AGENT,
@@ -49,7 +51,7 @@ class ListenBrainzClient(UpstreamClient):
     ) -> list[ImportedArtist]:
         self.last_response_metadata = None
         _validate_pagination(count=count, offset=offset)
-        self._active_auth_token = token
+        active_auth_token = _ACTIVE_AUTH_TOKEN.set(token)
         try:
             payload = self.get_json(
                 f"/1/stats/user/{quote(username, safe='')}/artists",
@@ -61,7 +63,7 @@ class ListenBrainzClient(UpstreamClient):
                 return []
             raise
         finally:
-            self._active_auth_token = None
+            _ACTIVE_AUTH_TOKEN.reset(active_auth_token)
         artists = payload.get("payload", {}).get("artists", [])
         return [_imported_artist_from_payload(artist) for artist in artists]
 
@@ -74,8 +76,9 @@ class ListenBrainzClient(UpstreamClient):
 
     def _error_for_response(self, response: httpx.Response):
         payload = _response_payload(response)
-        if self._active_auth_token:
-            payload = _redact_auth_token(payload, self._active_auth_token)
+        active_auth_token = _ACTIVE_AUTH_TOKEN.get()
+        if active_auth_token:
+            payload = _redact_auth_token(payload, active_auth_token)
 
         if response.status_code != 429:
             exception_type = self._exception_type_for_status(response.status_code)

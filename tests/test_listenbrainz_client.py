@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import httpx
 import pytest
 
@@ -231,6 +234,30 @@ def test_get_user_artists_redacts_token_echoed_in_rate_limit_error_body():
         client.get_user_artists("listener", auth_value)
 
     assert auth_value not in str(exc_info.value.payload)
+
+
+def test_get_user_artists_redacts_tokens_during_concurrent_errors():
+    barrier = Barrier(2)
+
+    def handler(request):
+        token = request.headers["authorization"].removeprefix("Token ")
+        barrier.wait(timeout=5)
+        return httpx.Response(429, json={"error": f"invalid {token}"})
+
+    client = _client_for(handler)
+
+    def payload_for(token):
+        with pytest.raises(UpstreamRateLimited) as exc_info:
+            client.get_user_artists("listener", token)
+        return exc_info.value.payload
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_payload, second_payload = executor.map(payload_for, ["token-a", "token-b"])
+
+    assert "token-a" not in str(first_payload)
+    assert "token-b" not in str(first_payload)
+    assert "token-a" not in str(second_payload)
+    assert "token-b" not in str(second_payload)
 
 
 @pytest.mark.parametrize(
