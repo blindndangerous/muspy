@@ -20,7 +20,7 @@ def decrypt_provider_token(token_encrypted: str) -> str:
         return ""
     try:
         return _fernet().decrypt(token_encrypted.encode("ascii")).decode("utf-8")
-    except InvalidToken as error:
+    except (InvalidToken, UnicodeError) as error:
         raise ProviderTokenError("Provider token could not be decrypted.") from error
 
 
@@ -38,12 +38,20 @@ def _fernet() -> Fernet:
         raise ImproperlyConfigured(
             "PROVIDER_TOKEN_ENCRYPTION_KEY must be set to store provider tokens."
         )
-    return Fernet(key.encode("ascii"))
+    try:
+        return Fernet(key.encode("ascii"))
+    except (UnicodeError, ValueError) as error:
+        raise ImproperlyConfigured(
+            "PROVIDER_TOKEN_ENCRYPTION_KEY must be a valid Fernet key."
+        ) from error
 
 
 def _redact_string(payload: Any, value: str) -> Any:
     if isinstance(payload, dict):
-        return {key: _redact_string(child, value) for key, child in payload.items()}
+        return {
+            _redact_string(key, value): _redact_string(child, value)
+            for key, child in payload.items()
+        }
     if isinstance(payload, list):
         return [_redact_string(item, value) for item in payload]
     if isinstance(payload, str):

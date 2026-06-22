@@ -8,6 +8,7 @@ from django.test import override_settings
 
 from releasewatch.models import ProviderAccount
 from releasewatch.provider_tokens import (
+    ProviderTokenError,
     decrypt_provider_token,
     encrypt_provider_token,
     redact_provider_secrets,
@@ -99,10 +100,22 @@ def test_encrypt_provider_token_requires_key():
         encrypt_provider_token("listenbrainz-token")
 
 
+@override_settings(PROVIDER_TOKEN_ENCRYPTION_KEY="not-a-fernet-key")  # noqa: S106
+def test_encrypt_provider_token_rejects_invalid_key_as_configuration_error():
+    with pytest.raises(ImproperlyConfigured, match="PROVIDER_TOKEN_ENCRYPTION_KEY"):
+        encrypt_provider_token("listenbrainz-token")
+
+
+@override_settings(PROVIDER_TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode())
+def test_decrypt_provider_token_rejects_malformed_ciphertext_as_token_error():
+    with pytest.raises(ProviderTokenError):
+        decrypt_provider_token("not \u2603 ascii")
+
+
 def test_redact_provider_secrets_removes_nested_values():
     payload = {
         "token": "listenbrainz-token",
-        "nested": ["api-key", {"secret": "lastfm-secret"}],
+        "nested": ["api-key", {"secret-lastfm-secret": "lastfm-secret"}],
     }
 
     redacted = redact_provider_secrets(
