@@ -73,3 +73,4 @@ def test_provider_account_is_registered_without_token_search():
 
     assert "token_encrypted" not in model_admin.search_fields
     assert "token_encrypted" not in model_admin.list_display
+    assert "token_encrypted" in model_admin.exclude

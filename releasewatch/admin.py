@@ -89,6 +89,7 @@ class ImportCandidateAdmin(admin.ModelAdmin):
 
 @admin.register(ProviderAccount)
 class ProviderAccountAdmin(admin.ModelAdmin):
+    exclude = ["token_encrypted"]
     list_display = [
         "user",
         "provider",
