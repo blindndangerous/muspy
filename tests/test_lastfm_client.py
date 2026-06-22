@@ -302,6 +302,70 @@ def test_api_secret_is_redacted_from_http_error_payload_without_lastfm_code():
     assert PRIVATE_VALUE not in str(exc_info.value.payload)
 
 
+def test_api_key_is_redacted_from_exception_payload():
+    client = _client_for(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "error": 10,
+                "message": f"Invalid API key {API_KEY}",
+                "echoed": {"api_key": API_KEY},
+            },
+        )
+    )
+
+    with pytest.raises(UpstreamAuthError) as exc_info:
+        client.get_user_top_artists("listener")
+
+    assert API_KEY not in str(exc_info.value.payload)
+    assert exc_info.value.payload == {
+        "error": 10,
+        "message": "Invalid API key [redacted]",
+        "echoed": {"api_key": "[redacted]"},
+    }
+
+
+def test_api_key_is_redacted_from_http_error_payload_without_lastfm_code():
+    client = _client_for(
+        lambda request: httpx.Response(
+            500,
+            json={"message": f"upstream included {API_KEY}"},
+        )
+    )
+
+    with pytest.raises(UpstreamUnavailable) as exc_info:
+        client.get_user_top_artists("listener")
+
+    assert API_KEY not in str(exc_info.value.payload)
+
+
+def test_get_user_top_artists_rejects_non_string_artist_fields():
+    payload = {
+        "topartists": {
+            "artist": [
+                {"name": ["Fugazi"], "mbid": ARTIST_MBID},
+                {"name": "Unmatched Artist", "mbid": 123, "url": 456},
+            ]
+        }
+    }
+    client = _client_for(lambda request: httpx.Response(200, json=payload))
+
+    assert client.get_user_top_artists("listener") == [
+        ImportedArtist(
+            source_name="",
+            source_identifier=ARTIST_MBID,
+            mbid=ARTIST_MBID,
+            raw_payload=payload["topartists"]["artist"][0],
+        ),
+        ImportedArtist(
+            source_name="Unmatched Artist",
+            source_identifier="",
+            mbid="",
+            raw_payload=payload["topartists"]["artist"][1],
+        ),
+    ]
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

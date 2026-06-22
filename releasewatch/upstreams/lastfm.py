@@ -61,7 +61,7 @@ class LastFmClient(UpstreamClient):
                 "format": "json",
             },
         )
-        _raise_for_lastfm_error(payload, provider=self.provider)
+        _raise_for_lastfm_error(payload, provider=self.provider, api_key=self.api_key)
         return [_imported_artist_from_payload(artist) for artist in _artist_rows(payload)]
 
     def _error_for_response(self, response: httpx.Response) -> UpstreamError:
@@ -73,13 +73,13 @@ class LastFmClient(UpstreamClient):
                 f"{self.provider} returned HTTP {response.status_code}",
                 provider=self.provider,
                 status_code=response.status_code,
-                payload=_redact_api_secret(payload),
+                payload=_redact_credentials(payload, api_key=self.api_key),
             )
         return exception_type(
             "lastfm returned an API error",
             provider=self.provider,
             status_code=response.status_code,
-            payload=_redact_api_secret(payload),
+            payload=_redact_credentials(payload, api_key=self.api_key),
         )
 
 
@@ -94,14 +94,14 @@ def _validate_pagination(*, limit: int, page: int) -> None:
         raise ValueError("page must be greater than or equal to 1")
 
 
-def _raise_for_lastfm_error(payload: Any, *, provider: str) -> None:
+def _raise_for_lastfm_error(payload: Any, *, provider: str, api_key: str) -> None:
     exception_type = _exception_type_for_lastfm_payload(payload)
     if exception_type is None:
         return
     raise exception_type(
         "lastfm returned an API error",
         provider=provider,
-        payload=_redact_api_secret(payload),
+        payload=_redact_credentials(payload, api_key=api_key),
     )
 
 
@@ -148,10 +148,10 @@ def _artist_rows(payload: Any) -> list[dict[str, Any]]:
 
 
 def _imported_artist_from_payload(payload: dict[str, Any]) -> ImportedArtist:
-    mbid = payload.get("mbid") or ""
+    mbid = _string_field(payload, "mbid")
     return ImportedArtist(
-        source_name=payload.get("name", ""),
-        source_identifier=mbid or payload.get("url", ""),
+        source_name=_string_field(payload, "name"),
+        source_identifier=mbid or _string_field(payload, "url"),
         mbid=mbid,
         raw_payload=deepcopy(payload),
     )
@@ -164,11 +164,17 @@ def _response_payload(response: httpx.Response):
         return {"body": "[invalid json]"}
 
 
-def _redact_api_secret(payload: Any) -> Any:
-    api_secret = settings.LASTFM_API_SECRET
-    if not api_secret:
-        return payload
-    return _redact_string(payload, api_secret)
+def _string_field(payload: dict[str, Any], field: str) -> str:
+    value = payload.get(field)
+    return value if isinstance(value, str) else ""
+
+
+def _redact_credentials(payload: Any, *, api_key: str) -> Any:
+    redacted = payload
+    for value in (api_key, settings.LASTFM_API_SECRET):
+        if value:
+            redacted = _redact_string(redacted, value)
+    return redacted
 
 
 def _redact_string(payload: Any, value: str) -> Any:
