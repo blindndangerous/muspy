@@ -106,7 +106,7 @@ Coverage must include:
 - Error mapping for 404, 401/403, 429, 503, invalid JSON, and timeout.
 - Secret redaction in stored/loggable payloads.
 
-Coverage floor stays at 95% and only moves up.
+Coverage floor stays at 96% and only moves up.
 
 ## Non-goals
 

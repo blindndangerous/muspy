@@ -1437,7 +1437,7 @@ Remove-Item .tmp-domain.sqlite3* -ErrorAction SilentlyContinue
 Expected:
 
 - tests pass
-- coverage remains at or above 95%
+- coverage remains at or above 96%
 - lint passes
 - Bandit reports no issues
 - Django check reports no issues

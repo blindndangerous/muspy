@@ -90,7 +90,7 @@ uv run coverage run -m pytest
 uv run coverage report
 ```
 
-Coverage must stay at or above 95%. Treat that number as a ratchet: raise it
+Coverage must stay at or above 96%. Treat that number as a ratchet: raise it
 when the suite earns it, but do not lower it.
 
 Run linting and security checks:
