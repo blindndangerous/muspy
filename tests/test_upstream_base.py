@@ -9,6 +9,7 @@ from releasewatch.upstreams.base import (
     FixedIntervalThrottle,
     UpstreamAuthError,
     UpstreamClient,
+    UpstreamError,
     UpstreamNotFound,
     UpstreamRateLimited,
     UpstreamUnavailable,
@@ -24,6 +25,7 @@ from releasewatch.upstreams.base import (
         ("2026-06", (date(2026, 6, 1), DatePrecision.MONTH)),
         ("2026-06-21", (date(2026, 6, 21), DatePrecision.DAY)),
         ("", (None, "")),
+        ("bad-date", (None, "")),
     ],
 )
 def test_parse_partial_date_returns_date_and_precision(value, expected):
@@ -110,6 +112,86 @@ def test_upstream_client_sends_json_headers():
     assert seen_headers["accept"] == "application/json"
 
 
+def test_upstream_client_merges_custom_headers_and_uses_absolute_url():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["authorization"] = request.headers["authorization"]
+        return httpx.Response(200, json={"ok": True})
+
+    client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.get_json(
+        "https://other-provider.test/path",
+        headers={"Authorization": "Token secret"},
+    ) == {"ok": True}
+    assert seen == {
+        "url": "https://other-provider.test/path",
+        "authorization": "Token secret",
+    }
+
+
+def test_upstream_client_requires_user_agent():
+    with pytest.raises(ValueError, match="User-Agent"):
+        UpstreamClient(base_url="https://provider.test", user_agent="")
+
+
+def test_upstream_client_accepts_default_and_timeout_http_clients():
+    default_client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+    )
+    timeout_client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+        timeout=1.0,
+    )
+
+    assert isinstance(default_client.http_client, httpx.Client)
+    assert isinstance(timeout_client.http_client, httpx.Client)
+    default_client.http_client.close()
+    timeout_client.http_client.close()
+
+
+def test_upstream_client_maps_request_error_to_unavailable():
+    def handler(request):
+        raise httpx.ConnectError("network down", request=request)
+
+    client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(UpstreamUnavailable) as exc_info:
+        client.get_json("/network-error")
+
+    assert exc_info.value.status_code is None
+    assert exc_info.value.payload == {"error": "network down"}
+
+
+def test_upstream_client_maps_unclassified_client_error_to_upstream_error():
+    def handler(request):
+        return httpx.Response(400, json={"error": "bad request"})
+
+    client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(UpstreamError) as exc_info:
+        client.get_json("/bad")
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.payload == {"error": "bad request"}
+
+
 def test_upstream_client_maps_invalid_json_to_unavailable_with_redacted_payload():
     def handler(request):
         return httpx.Response(200, text='{"api_key": "secret"')
@@ -138,3 +220,16 @@ def test_fixed_interval_throttle_waits_between_calls(monkeypatch):
     throttle.wait()
 
     assert sleeps == [1.0]
+
+
+def test_fixed_interval_throttle_skips_sleep_when_interval_elapsed(monkeypatch):
+    values = iter([10.0, 12.0])
+    sleeps = []
+    monkeypatch.setattr(time, "monotonic", lambda: next(values))
+    monkeypatch.setattr(time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    throttle = FixedIntervalThrottle(interval_seconds=1.0)
+    throttle.wait()
+    throttle.wait()
+
+    assert sleeps == []
