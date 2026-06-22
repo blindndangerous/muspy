@@ -8,6 +8,16 @@ def read_project_file(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
+def service_block(compose: str, service: str) -> str:
+    match = re.search(
+        rf"^  {service}:\n(?P<block>(?:    .*\n?)+)",
+        compose,
+        re.MULTILINE,
+    )
+    assert match is not None
+    return match.group("block")
+
+
 def test_compose_defines_database_and_django_services():
     compose = read_project_file("compose.yml")
 
@@ -53,6 +63,19 @@ def test_compose_defines_rabbitmq_redis_dedicated_workers_and_beat():
     assert "maintenance" in compose
 
 
+def test_compose_rabbitmq_uses_stable_node_name_for_persistent_volume():
+    broker_block = service_block(read_project_file("compose.yml"), "broker")
+
+    assert "hostname: broker" in broker_block
+    assert "RABBITMQ_NODENAME: rabbit@broker" in broker_block
+
+
+def test_compose_beat_is_profile_gated_until_migrations_exist():
+    beat_block = service_block(read_project_file("compose.yml"), "beat")
+
+    assert 'profiles: ["scheduler"]' in beat_block
+
+
 def test_compose_wires_database_health_env_and_web_port():
     compose = read_project_file("compose.yml")
 
@@ -96,30 +119,34 @@ def test_containerfile_prevents_runtime_uv_sync_and_dev_dependencies():
 def test_compose_runtime_commands_do_not_use_uv_run():
     compose = read_project_file("compose.yml")
 
-    for service in (
-        "web",
-        "worker-imports",
-        "worker-sync",
-        "worker-notifications",
-        "worker-maintenance",
-        "beat",
-    ):
-        match = re.search(
-            rf"^  {service}:\n(?P<block>(?:    .*\n?)+)",
-            compose,
-            re.MULTILINE,
-        )
-        assert match is not None
-        service_block = match.group("block")
+    expected_commands = {
+        "web": 'command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]',
+        "worker-imports": (
+            'command: ["celery", "-A", "config", "worker", "-Q", '
+            '"imports", "--loglevel=info"]'
+        ),
+        "worker-sync": (
+            'command: ["celery", "-A", "config", "worker", "-Q", '
+            '"sync", "--loglevel=info"]'
+        ),
+        "worker-notifications": (
+            'command: ["celery", "-A", "config", "worker", "-Q", '
+            '"notifications", "--loglevel=info"]'
+        ),
+        "worker-maintenance": (
+            'command: ["celery", "-A", "config", "worker", "-Q", '
+            '"maintenance", "--loglevel=info"]'
+        ),
+        "beat": 'command: ["celery", "-A", "config", "beat", "--loglevel=info"]',
+    }
+    for service, expected_command in expected_commands.items():
+        block = service_block(compose, service)
         command_line = next(
-            line for line in service_block.splitlines() if "command:" in line
+            line.strip() for line in block.splitlines() if "command:" in line
         )
         assert '"uv"' not in command_line
         assert '"run"' not in command_line
-
-    assert '"python", "manage.py"' in compose
-    assert '"celery", "-A", "config", "worker"' in compose
-    assert '"celery", "-A", "config", "beat"' in compose
+        assert command_line == expected_command
 
 
 def test_containerignore_excludes_local_and_legacy_artifacts():
