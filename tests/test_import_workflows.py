@@ -418,3 +418,87 @@ def test_listenbrainz_recurring_import_stores_encrypted_token(settings):
     assert account.external_username == "listener"
     assert account.token_encrypted
     assert "private-token" not in account.token_encrypted
+
+
+@pytest.mark.django_db
+def test_run_import_task_uses_import_run_id_for_plain_text():
+    user = create_user("task-import-user")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.PLAIN_TEXT,
+        raw_payload={"text": "Fugazi\nUnwound"},
+    )
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    run.refresh_from_db()
+    assert run.status == ImportRun.Status.PENDING_REVIEW
+    assert list(run.candidates.order_by("source_name").values_list("source_name", flat=True)) == [
+        "Fugazi",
+        "Unwound",
+    ]
+
+
+@pytest.mark.django_db
+def test_import_provider_account_marks_missing_token_as_failed():
+    user = create_user("provider-task-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LISTENBRAINZ,
+        external_username="listener",
+    )
+
+    from releasewatch.tasks import import_provider_account
+
+    import_provider_account(account.id)
+
+    account.refresh_from_db()
+    assert account.status == ProviderAccount.Status.FAILED
+    assert "token" in account.last_error_message.lower()
+
+
+@pytest.mark.django_db
+def test_import_provider_account_marks_failed_when_provider_import_fails(mocker):
+    user = create_user("provider-import-failure-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="listener",
+    )
+    failed_run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LASTFM,
+        status=ImportRun.Status.FAILED,
+        error_message="lastfm unavailable",
+    )
+    mocker.patch("releasewatch.tasks.start_lastfm_import", return_value=failed_run)
+
+    from releasewatch.tasks import import_provider_account
+
+    import_provider_account(account.id)
+
+    account.refresh_from_db()
+    assert account.status == ProviderAccount.Status.FAILED
+    assert account.last_imported_at is None
+    assert account.last_error_message == "lastfm unavailable"
+
+
+@pytest.mark.django_db
+def test_enqueue_due_provider_imports_enqueues_active_accounts(mocker):
+    user = create_user("scanner-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="listener",
+    )
+
+    from releasewatch.tasks import enqueue_due_provider_imports
+
+    delay = mocker.patch("releasewatch.tasks.import_provider_account.delay")
+
+    count = enqueue_due_provider_imports(batch_size=10)
+
+    assert count == 1
+    delay.assert_called_once_with(account.id)
