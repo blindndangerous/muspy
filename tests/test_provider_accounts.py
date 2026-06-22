@@ -126,3 +126,13 @@ def test_redact_provider_secrets_removes_nested_values():
     assert "listenbrainz-token" not in str(redacted)
     assert "api-key" not in str(redacted)
     assert "lastfm-secret" not in str(redacted)
+
+
+def test_redact_provider_secrets_handles_overlapping_values_longest_first():
+    redacted = redact_provider_secrets(
+        {"token": "abc123"},
+        secret_values=["abc", "abc123"],
+    )
+
+    assert redacted == {"token": "[redacted]"}
+    assert "123" not in str(redacted)

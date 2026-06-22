@@ -26,7 +26,7 @@ def decrypt_provider_token(token_encrypted: str) -> str:
 
 def redact_provider_secrets(payload: Any, *, secret_values: list[str]) -> Any:
     redacted = payload
-    for value in secret_values:
+    for value in sorted(secret_values, key=len, reverse=True):
         if value:
             redacted = _redact_string(redacted, value)
     return redacted
