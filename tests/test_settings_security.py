@@ -43,8 +43,34 @@ def test_get_secret_key_prefers_env_secret(monkeypatch):
     assert app_settings._get_secret_key(debug=False, running_tests=False) == "real-secret"
 
 
-def test_running_tests_detects_pytest_loaded_by_coverage(monkeypatch):
-    monkeypatch.setattr(app_settings.sys, "argv", ["coverage", "tests/test_settings_security.py"])
+def test_running_tests_detects_coverage_running_pytest(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", ["coverage", "run", "-m", "pytest"])
+
+    assert app_settings._running_tests() is True
+
+
+def test_running_tests_ignores_imported_pytest_module(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", ["manage.py", "check", "--deploy"])
+
+    assert app_settings._running_tests() is False
+
+
+def test_upstream_timeout_rejects_invalid_value(monkeypatch):
+    monkeypatch.setenv("UPSTREAM_HTTP_TIMEOUT_SECONDS", "not-an-int")
+
+    with pytest.raises(ImproperlyConfigured, match="UPSTREAM_HTTP_TIMEOUT_SECONDS"):
+        app_settings._env_int("UPSTREAM_HTTP_TIMEOUT_SECONDS", default=10, minimum=1, maximum=60)
+
+
+def test_upstream_timeout_rejects_out_of_range_value(monkeypatch):
+    monkeypatch.setenv("UPSTREAM_HTTP_TIMEOUT_SECONDS", "0")
+
+    with pytest.raises(ImproperlyConfigured, match="between 1 and 60"):
+        app_settings._env_int("UPSTREAM_HTTP_TIMEOUT_SECONDS", default=10, minimum=1, maximum=60)
+
+
+def test_running_tests_detects_pytest_script(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", ["pytest", "tests/test_settings_security.py"])
 
     assert app_settings._running_tests() is True
 

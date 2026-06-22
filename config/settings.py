@@ -16,8 +16,24 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.lower() in {"1", "true", "yes", "on"}
 
 
+def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise ImproperlyConfigured(f"{name} must be an integer.") from error
+
+    if not minimum <= value <= maximum:
+        raise ImproperlyConfigured(f"{name} must be between {minimum} and {maximum}.")
+
+    return value
+
+
 def _running_tests() -> bool:
-    return "pytest" in sys.modules or any("pytest" in Path(arg).name for arg in sys.argv)
+    return any("pytest" in Path(arg).name for arg in sys.argv)
 
 
 def _running_plain_system_check() -> bool:
@@ -123,7 +139,12 @@ EMAIL_BACKEND = os.environ.get(
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "muspy@example.test")
 
-UPSTREAM_HTTP_TIMEOUT_SECONDS = int(os.environ.get("UPSTREAM_HTTP_TIMEOUT_SECONDS", "10"))
+UPSTREAM_HTTP_TIMEOUT_SECONDS = _env_int(
+    "UPSTREAM_HTTP_TIMEOUT_SECONDS",
+    default=10,
+    minimum=1,
+    maximum=60,
+)
 UPSTREAM_CONTACT = os.environ.get("UPSTREAM_CONTACT", "https://example.invalid/contact")
 UPSTREAM_USER_AGENT = os.environ.get(
     "UPSTREAM_USER_AGENT",
