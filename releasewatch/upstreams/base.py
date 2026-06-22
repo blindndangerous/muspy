@@ -31,6 +31,14 @@ class UpstreamArtist:
 
 
 @dataclass(frozen=True)
+class ImportedArtist:
+    source_name: str
+    source_identifier: str
+    mbid: str
+    raw_payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class UpstreamReleaseGroup:
     mbid: str
     title: str
@@ -50,6 +58,13 @@ class UpstreamRelease:
     status: str
     media_format: str
     raw_payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class UpstreamResponseMetadata:
+    limit: int | None
+    remaining: int | None
+    reset_in_seconds: int | None
 
 
 class UpstreamError(Exception):
@@ -202,6 +217,8 @@ class UpstreamClient:
                 payload={"error_type": type(exc).__name__},
             ) from exc
 
+        self._handle_response_metadata(response)
+
         if response.status_code >= 400:
             raise self._error_for_response(response)
 
@@ -214,6 +231,9 @@ class UpstreamClient:
                 status_code=response.status_code,
                 payload=_response_payload(response),
             ) from exc
+
+    def _handle_response_metadata(self, response: httpx.Response) -> None:
+        pass
 
     def _url_for_path(self, path: str) -> str:
         if path.startswith(("http://", "https://")):
