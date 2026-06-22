@@ -42,17 +42,20 @@ def parse_partial_date(value: str):
     if not value:
         return None, ""
 
-    match len(value):
-        case 4:
-            return date(int(value), 1, 1), DatePrecision.YEAR
-        case 7:
-            year, month = value.split("-", maxsplit=1)
-            return date(int(year), int(month), 1), DatePrecision.MONTH
-        case 10:
-            year, month, day = value.split("-", maxsplit=2)
-            return date(int(year), int(month), int(day)), DatePrecision.DAY
-        case _:
-            return None, ""
+    try:
+        match len(value):
+            case 4:
+                return date(int(value), 1, 1), DatePrecision.YEAR
+            case 7:
+                year, month = value.split("-", maxsplit=1)
+                return date(int(year), int(month), 1), DatePrecision.MONTH
+            case 10:
+                year, month, day = value.split("-", maxsplit=2)
+                return date(int(year), int(month), int(day)), DatePrecision.DAY
+            case _:
+                return None, ""
+    except ValueError:
+        return None, ""
 
 
 def redact_upstream_payload(value):
@@ -85,6 +88,7 @@ class UpstreamClient:
         http_client: httpx.Client | None = None,
         timeout: httpx.Timeout | float | None = None,
         throttle: FixedIntervalThrottle | None = None,
+        rate_limit_status_codes: set[int] | None = None,
     ) -> None:
         if not user_agent:
             raise ValueError("UpstreamClient requires a User-Agent")
@@ -93,12 +97,26 @@ class UpstreamClient:
         self.user_agent = user_agent
         self.provider = provider or httpx.URL(base_url).host
         self.throttle = throttle
+        self.rate_limit_status_codes = rate_limit_status_codes or {429}
         if http_client is not None:
             self.http_client = http_client
+            self._owns_http_client = False
         elif timeout is None:
             self.http_client = httpx.Client()
+            self._owns_http_client = True
         else:
             self.http_client = httpx.Client(timeout=timeout)
+            self._owns_http_client = True
+
+    def close(self) -> None:
+        if self._owns_http_client:
+            self.http_client.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
 
     def get_json(
         self,
@@ -126,7 +144,7 @@ class UpstreamClient:
             raise UpstreamUnavailable(
                 f"{self.provider} request failed",
                 provider=self.provider,
-                payload={"error": str(exc)},
+                payload={"error_type": type(exc).__name__},
             ) from exc
 
         if response.status_code >= 400:
@@ -144,11 +162,13 @@ class UpstreamClient:
 
     def _url_for_path(self, path: str) -> str:
         if path.startswith(("http://", "https://")):
+            if httpx.URL(path).host != httpx.URL(self.base_url).host:
+                raise ValueError("UpstreamClient does not allow off-origin absolute URLs")
             return path
         return f"{self.base_url}/{path.lstrip('/')}"
 
     def _error_for_response(self, response: httpx.Response) -> UpstreamError:
-        exception_type = _exception_type_for_status(response.status_code)
+        exception_type = self._exception_type_for_status(response.status_code)
         return exception_type(
             f"{self.provider} returned HTTP {response.status_code}",
             provider=self.provider,
@@ -156,9 +176,14 @@ class UpstreamClient:
             payload=_response_payload(response),
         )
 
+    def _exception_type_for_status(self, status_code: int) -> type[UpstreamError]:
+        if status_code in self.rate_limit_status_codes:
+            return UpstreamRateLimited
+        return _exception_type_for_status(status_code)
+
 
 def _exception_type_for_status(status_code: int) -> type[UpstreamError]:
-    if status_code in {429, 503}:
+    if status_code == 429:
         return UpstreamRateLimited
     if status_code in {401, 403}:
         return UpstreamAuthError

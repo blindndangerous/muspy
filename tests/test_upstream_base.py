@@ -26,6 +26,10 @@ from releasewatch.upstreams.base import (
         ("2026-06-21", (date(2026, 6, 21), DatePrecision.DAY)),
         ("", (None, "")),
         ("bad-date", (None, "")),
+        ("202A", (None, "")),
+        ("2026-13", (None, "")),
+        ("2026-02-30", (None, "")),
+        ("0000", (None, "")),
     ],
 )
 def test_parse_partial_date_returns_date_and_precision(value, expected):
@@ -74,7 +78,7 @@ def test_upstream_client_maps_http_429_to_rate_limited():
         (403, UpstreamAuthError),
         (404, UpstreamNotFound),
         (500, UpstreamUnavailable),
-        (503, UpstreamRateLimited),
+        (503, UpstreamUnavailable),
     ],
 )
 def test_upstream_client_maps_http_status_to_specific_exception(status_code, exception_type):
@@ -112,7 +116,7 @@ def test_upstream_client_sends_json_headers():
     assert seen_headers["accept"] == "application/json"
 
 
-def test_upstream_client_merges_custom_headers_and_uses_absolute_url():
+def test_upstream_client_merges_custom_headers():
     seen = {}
 
     def handler(request):
@@ -127,13 +131,40 @@ def test_upstream_client_merges_custom_headers_and_uses_absolute_url():
     )
 
     assert client.get_json(
-        "https://other-provider.test/path",
+        "/path",
         headers={"Authorization": "Token secret"},
     ) == {"ok": True}
     assert seen == {
-        "url": "https://other-provider.test/path",
+        "url": "https://provider.test/path",
         "authorization": "Token secret",
     }
+
+
+def test_upstream_client_rejects_off_origin_absolute_url():
+    client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+    )
+
+    with pytest.raises(ValueError, match="absolute URLs"):
+        client.get_json("https://other-provider.test/path")
+
+    client.close()
+
+
+def test_upstream_client_can_map_503_to_rate_limited_for_provider_policy():
+    def handler(request):
+        return httpx.Response(503, json={"error": "slow down"})
+
+    client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        rate_limit_status_codes={503},
+    )
+
+    with pytest.raises(UpstreamRateLimited):
+        client.get_json("/path")
 
 
 def test_upstream_client_requires_user_agent():
@@ -160,7 +191,10 @@ def test_upstream_client_accepts_default_and_timeout_http_clients():
 
 def test_upstream_client_maps_request_error_to_unavailable():
     def handler(request):
-        raise httpx.ConnectError("network down", request=request)
+        raise httpx.ConnectError(
+            "network down: https://provider.test/path?token=secret",
+            request=request,
+        )
 
     client = UpstreamClient(
         base_url="https://provider.test",
@@ -172,7 +206,39 @@ def test_upstream_client_maps_request_error_to_unavailable():
         client.get_json("/network-error")
 
     assert exc_info.value.status_code is None
-    assert exc_info.value.payload == {"error": "network down"}
+    assert exc_info.value.payload == {"error_type": "ConnectError"}
+
+
+def test_upstream_client_closes_only_owned_http_client():
+    owned_client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+    )
+    injected_http_client = httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200))
+    )
+    injected_client = UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+        http_client=injected_http_client,
+    )
+
+    owned_client.close()
+    injected_client.close()
+
+    assert owned_client.http_client.is_closed is True
+    assert injected_http_client.is_closed is False
+    injected_http_client.close()
+
+
+def test_upstream_client_supports_context_manager_for_owned_client():
+    with UpstreamClient(
+        base_url="https://provider.test",
+        user_agent="muspy/0.1.0 (https://example.invalid/contact)",
+    ) as client:
+        http_client = client.http_client
+
+    assert http_client.is_closed is True
 
 
 def test_upstream_client_maps_unclassified_client_error_to_upstream_error():
@@ -213,7 +279,12 @@ def test_fixed_interval_throttle_waits_between_calls(monkeypatch):
     current = {"value": 10.0}
     sleeps = []
     monkeypatch.setattr(time, "monotonic", lambda: current["value"])
-    monkeypatch.setattr(time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    def fake_sleep(seconds):
+        sleeps.append(seconds)
+        current["value"] += seconds
+
+    monkeypatch.setattr(time, "sleep", fake_sleep)
 
     throttle = FixedIntervalThrottle(interval_seconds=1.0)
     throttle.wait()
