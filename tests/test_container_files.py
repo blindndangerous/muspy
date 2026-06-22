@@ -28,6 +28,8 @@ def test_compose_wires_database_health_env_and_web_port():
     assert "POSTGRES_PASSWORD: muspy" in compose
     assert "pg_isready" in compose
     assert "muspy-postgres-data:" in compose
+    assert "/var/lib/postgresql/data" not in compose
+    assert "/var/lib/postgresql" in compose
     assert "DATABASE_URL=postgresql://muspy:muspy@db:5432/muspy" in compose
     assert "condition: service_healthy" in compose
     assert '"8000:8000"' in compose

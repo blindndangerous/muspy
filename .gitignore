@@ -6,4 +6,5 @@ __pycache__/
 htmlcov/
 .venv/
 .env
-staticfiles/
+staticfiles/*
+!staticfiles/.gitkeep
