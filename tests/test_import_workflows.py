@@ -142,3 +142,42 @@ def test_imported_artist_without_mbid_uses_high_confidence_name_matcher():
     )
 
     assert run.candidates.get().artist == matched_artist
+
+
+@pytest.mark.django_db
+def test_imported_artist_long_fields_are_clamped_to_model_limits():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+
+    apply_imported_artists(
+        run=run,
+        imported_artists=[
+            ImportedArtist(
+                "Long " + ("Artist" * 100),
+                "provider:" + ("identifier" * 100),
+                "",
+                {"name": "long"},
+            )
+        ],
+    )
+
+    candidate = run.candidates.get()
+    assert len(candidate.source_name) == 255
+    assert len(candidate.source_identifier) == 255
+
+
+@pytest.mark.django_db
+def test_imported_artist_with_non_string_mbid_stays_pending_without_aborting_run():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+
+    apply_imported_artists(
+        run=run,
+        imported_artists=[
+            ImportedArtist("Broken MBID", "lastfm:broken", ["not-a-uuid"], {"name": "Broken MBID"})
+        ],
+    )
+
+    run.refresh_from_db()
+    assert run.status == ImportRun.Status.PENDING_REVIEW
+    assert run.candidates.get().artist is None

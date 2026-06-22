@@ -57,7 +57,7 @@ def apply_imported_artists(
                 source_identifier=source_identifier,
                 defaults={
                     "artist": artist,
-                    "source_name": imported_artist.source_name,
+                    "source_name": _clamp_model_string(imported_artist.source_name),
                     "raw_payload": imported_artist.raw_payload,
                 },
             )
@@ -125,7 +125,7 @@ def reject_import_candidate(*, candidate: ImportCandidate, user) -> None:
 
 
 def _artist_for_imported(imported_artist: ImportedArtist) -> Artist | None:
-    if not imported_artist.mbid:
+    if not isinstance(imported_artist.mbid, str) or not imported_artist.mbid:
         return None
     try:
         mbid = UUID(imported_artist.mbid)
@@ -143,8 +143,12 @@ def _artist_for_imported(imported_artist: ImportedArtist) -> Artist | None:
 
 def _source_identifier_for_imported(imported_artist: ImportedArtist) -> str:
     if imported_artist.source_identifier:
-        return imported_artist.source_identifier
-    return f"name:{imported_artist.source_name.casefold()}"
+        return _clamp_model_string(str(imported_artist.source_identifier))
+    return _clamp_model_string(f"name:{imported_artist.source_name.casefold()}")
+
+
+def _clamp_model_string(value: str, *, max_length: int = 255) -> str:
+    return str(value)[:max_length]
 
 
 def _plain_text_names(text: str) -> list[str]:
