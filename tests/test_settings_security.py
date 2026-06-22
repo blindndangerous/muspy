@@ -90,3 +90,13 @@ def test_upstream_client_settings_have_safe_defaults():
     assert "example.invalid" in settings.UPSTREAM_CONTACT
     assert settings.LASTFM_API_KEY == ""
     assert settings.LASTFM_API_SECRET == ""
+
+
+def test_task_infrastructure_settings_have_production_defaults(settings):
+    assert settings.CELERY_BROKER_URL.startswith("amqp://")
+    assert settings.CELERY_TASK_IGNORE_RESULT is True
+    assert settings.CELERY_TASK_DEFAULT_QUEUE == "maintenance"
+    assert settings.CELERY_TASK_SERIALIZER == "json"
+    assert settings.CELERY_ACCEPT_CONTENT == ["json"]
+    assert settings.REDIS_URL.startswith("redis://")
+    assert settings.PROVIDER_TOKEN_ENCRYPTION_KEY == ""

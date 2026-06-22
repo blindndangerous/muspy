@@ -5,10 +5,14 @@ description = "Modern album release notification service"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "celery>=5.6,<6.0",
+    "cryptography>=49.0,<50.0",
     "Django>=6.0,<6.1",
+    "django-celery-beat>=2.9,<3.0",
     "dj-database-url>=3.0,<4.0",
     "httpx>=0.28,<1.0",
     "psycopg[binary]>=3.2,<4.0",
+    "redis>=8.0,<9.0",
     "whitenoise>=6.9,<7.0",
 ]
 
