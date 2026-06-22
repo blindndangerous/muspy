@@ -18,6 +18,10 @@ from releasewatch.upstreams.base import (
 )
 
 _ACTIVE_AUTH_TOKEN: ContextVar[str | None] = ContextVar("listenbrainz_auth_token", default=None)
+_ACTIVE_RESPONSE_METADATA: ContextVar[UpstreamResponseMetadata | None] = ContextVar(
+    "listenbrainz_response_metadata",
+    default=None,
+)
 
 
 class ListenBrainzClient(UpstreamClient):
@@ -50,6 +54,7 @@ class ListenBrainzClient(UpstreamClient):
         offset: int = 0,
     ) -> list[ImportedArtist]:
         self.last_response_metadata = None
+        active_response_metadata = _ACTIVE_RESPONSE_METADATA.set(None)
         _validate_pagination(count=count, offset=offset)
         active_auth_token = _ACTIVE_AUTH_TOKEN.set(token)
         try:
@@ -64,15 +69,18 @@ class ListenBrainzClient(UpstreamClient):
             raise
         finally:
             _ACTIVE_AUTH_TOKEN.reset(active_auth_token)
+            _ACTIVE_RESPONSE_METADATA.reset(active_response_metadata)
         artists = payload.get("payload", {}).get("artists", [])
         return [_imported_artist_from_payload(artist) for artist in artists]
 
     def _handle_response_metadata(self, response: httpx.Response) -> None:
-        self.last_response_metadata = UpstreamResponseMetadata(
+        metadata = UpstreamResponseMetadata(
             limit=_parse_rate_limit_header(response, "X-RateLimit-Limit"),
             remaining=_parse_rate_limit_header(response, "X-RateLimit-Remaining"),
             reset_in_seconds=_parse_rate_limit_header(response, "X-RateLimit-Reset-In"),
         )
+        _ACTIVE_RESPONSE_METADATA.set(metadata)
+        self.last_response_metadata = metadata
 
     def _error_for_response(self, response: httpx.Response):
         payload = _response_payload(response)
@@ -95,7 +103,7 @@ class ListenBrainzClient(UpstreamClient):
             status_code=response.status_code,
             payload=_payload_with_rate_limit(
                 payload,
-                self.last_response_metadata,
+                _ACTIVE_RESPONSE_METADATA.get(),
             ),
         )
 

@@ -260,6 +260,36 @@ def test_get_user_artists_redacts_tokens_during_concurrent_errors():
     assert "token-b" not in str(second_payload)
 
 
+def test_get_user_artists_uses_request_local_rate_metadata_for_concurrent_errors():
+    barrier = Barrier(2)
+
+    def handler(request):
+        auth_value = request.headers["authorization"].removeprefix("Token ")
+        reset_in = "11" if auth_value == "auth-sentinel-a" else "22"
+        barrier.wait(timeout=5)
+        return httpx.Response(
+            429,
+            headers={"X-RateLimit-Reset-In": reset_in},
+            json={"error": f"invalid {auth_value}"},
+        )
+
+    client = _client_for(handler)
+
+    def payload_for(token):
+        with pytest.raises(UpstreamRateLimited) as exc_info:
+            client.get_user_artists("listener", token)
+        return exc_info.value.payload
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_payload, second_payload = executor.map(
+            payload_for,
+            ["auth-sentinel-a", "auth-sentinel-b"],
+        )
+
+    assert first_payload["rate_limit"]["reset_in_seconds"] == 11
+    assert second_payload["rate_limit"]["reset_in_seconds"] == 22
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
