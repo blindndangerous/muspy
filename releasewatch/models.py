@@ -294,6 +294,45 @@ class ImportCandidate(models.Model):
         return self.source_name
 
 
+class ProviderAccount(models.Model):
+    class Provider(models.TextChoices):
+        LASTFM = "lastfm", "Last.fm"
+        LISTENBRAINZ = "listenbrainz", "ListenBrainz"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        REVOKED = "revoked", "Revoked"
+        FAILED = "failed", "Failed"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    provider = models.CharField(max_length=32, choices=Provider)
+    external_username = models.CharField(max_length=255)
+    token_encrypted = models.TextField(blank=True)
+    scopes = models.JSONField(default=list, blank=True)
+    status = models.CharField(max_length=16, choices=Status, default=Status.ACTIVE)
+    last_imported_at = models.DateTimeField(null=True, blank=True)
+    last_error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "provider"]),
+            models.Index(fields=["provider", "status"]),
+            models.Index(fields=["last_imported_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "provider", "external_username"],
+                condition=models.Q(status="active"),
+                name="provider_account_unique_user_provider_username",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.external_username}"
+
+
 class DatePrecision(models.TextChoices):
     YEAR = "year", "Year"
     MONTH = "month", "Month"

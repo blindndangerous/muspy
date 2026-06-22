@@ -11,6 +11,7 @@ from .models import (
     Invite,
     Notification,
     NotificationPreference,
+    ProviderAccount,
     Release,
     ReleaseEvent,
     ReleaseGroup,
@@ -84,6 +85,20 @@ class ImportCandidateAdmin(admin.ModelAdmin):
     list_display = ["source_name", "artist", "review_state", "created_at", "reviewed_at"]
     list_filter = ["review_state"]
     search_fields = ["source_name", "source_identifier", "artist__name"]
+
+
+@admin.register(ProviderAccount)
+class ProviderAccountAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "provider",
+        "external_username",
+        "status",
+        "last_imported_at",
+        "updated_at",
+    ]
+    list_filter = ["provider", "status"]
+    search_fields = ["user__username", "user__email", "external_username"]
 
 
 @admin.register(ReleaseGroup)
