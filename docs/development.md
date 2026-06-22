@@ -10,6 +10,16 @@ Use this setup for the modern Muspy fork. The legacy application under
 - PostgreSQL 18, or Podman Compose or Docker Compose for a containerized
   PostgreSQL 18 database
 
+For Windows with Podman, install Podman and a Compose provider. One working
+setup is:
+
+```powershell
+choco install podman-cli
+winget install --id Docker.DockerCompose --accept-source-agreements --accept-package-agreements
+podman machine init
+podman machine start
+```
+
 ## Local setup
 
 Create your local environment file:
@@ -46,6 +56,25 @@ The default `.env.example` values target a local PostgreSQL database at
 `postgresql://muspy:muspy@localhost:5432/muspy`. Change `.env` for your own
 local database credentials.
 
+## Container setup
+
+Validate the Compose file:
+
+```sh
+podman compose -f compose.yml config
+```
+
+Run Django's system check in containers:
+
+```sh
+podman compose -f compose.yml up -d db
+podman compose -f compose.yml run --rm web python manage.py check
+podman compose -f compose.yml down -v
+```
+
+`postgres:18` expects its volume at `/var/lib/postgresql`. Do not move it back
+to `/var/lib/postgresql/data`.
+
 ## Tests and checks
 
 Run a targeted pytest file:
@@ -77,3 +106,14 @@ uv run python manage.py check
 For feature work and bug fixes, write a failing test before changing production
 behavior. Keep the test focused on the behavior being added or corrected, then
 make the smallest production change that makes the test pass.
+
+## Upstream provider tests
+
+Provider client tests use `httpx.MockTransport`. Do not add live network calls
+to the test suite. Configure provider credentials through environment variables:
+
+- `UPSTREAM_HTTP_TIMEOUT_SECONDS`
+- `UPSTREAM_CONTACT`
+- `UPSTREAM_USER_AGENT`
+- `LASTFM_API_KEY`
+- `LASTFM_API_SECRET`

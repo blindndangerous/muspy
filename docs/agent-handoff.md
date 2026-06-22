@@ -1,10 +1,10 @@
 # Agent Handoff
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
 ## Current Phase
 
-Upstream client implementation planned. Domain models complete.
+Upstream clients complete. Domain models complete.
 
 ## Repository
 
@@ -14,7 +14,7 @@ Upstream client implementation planned. Domain models complete.
 
 ## Goal
 
-Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 18, `uv`, and Podman/Docker Compose support. Legacy code remains reference only.
+Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`, and Podman/Docker Compose support. Legacy code remains reference only.
 
 ## Read First After Context Compact
 
@@ -72,10 +72,28 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `8c60f14` - `feat: register domain models in admin`
 - `e1f07d4` - `test: ratchet coverage floor to 95`
 - `a827db2` - `docs: add upstream client plan`
+- `c65d22b` - `docs: record upstream plan checkpoint`
+- `3da5e20` - `chore: add upstream client settings`
+- `5e9c6f9` - `fix: harden upstream setting defaults`
+- `05af046` - `feat: add upstream client base`
+- `f626335` - `test: cover upstream base edge cases`
+- `432ff53` - `fix: harden upstream base client`
+- `3b2cc47` - `fix: enforce upstream request origin`
+- `c1cb923` - `feat: add musicbrainz client`
+- `a9012e4` - `fix: harden musicbrainz client`
+- `5aaa7a5` - `fix: isolate musicbrainz payloads`
+- `43ccc47` - `feat: add listenbrainz client`
+- `18ebf91` - `fix: harden listenbrainz client`
+- `44a11c8` - `fix: isolate listenbrainz auth redaction`
+- `4d4ee40` - `fix: isolate listenbrainz rate metadata`
+- `3385b49` - `feat: add lastfm client`
+- `ac86608` - `fix: redact lastfm http error payloads`
+- `c416a27` - `fix: harden lastfm payload handling`
+- `cae176c` - `fix: clean smoke warnings and podman db mount`
 
 ## Next Required Step
 
-Continue with Task 1 in docs/superpowers/plans/2026-06-21-upstream-clients-plan.md.
+Write sync/import workflow plan.
 
 ## Open Questions
 
@@ -83,19 +101,38 @@ None currently blocking. Future implementation may need a specific production ho
 
 ## Verification Notes
 
-Current checkpoint verification:
+Latest full verification:
 
-- `uv run coverage run -m pytest tests/test_settings_security.py -q`
+- `uv run coverage run -m pytest tests/test_settings_security.py tests/test_quality_config.py tests/test_upstream_base.py tests/test_musicbrainz_client.py tests/test_listenbrainz_client.py tests/test_lastfm_client.py -q`
 - `DEBUG=1 DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run coverage run --append -m pytest tests/test_domain_models.py tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q`
 - `uv run coverage report`
 - `uv run ruff check .`
 - `uv run bandit -c pyproject.toml -r config releasewatch`
 - `uv run python manage.py check`
-- `uv run ruff check releasewatch tests/test_domain_models.py`
-- `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run pytest tests/test_domain_models.py -q` passed with 23 tests
-- `DEBUG=1 SECRET_KEY=domain-test-secret DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run python manage.py makemigrations --check --dry-run`
-- Latest full verification passed with 7 settings tests, 45 remaining tests, 95% coverage, Ruff clean, Bandit clean, and Django check clean.
-- Known local warning: Django reports no `staticfiles/` directory during smoke tests.
+- `podman build -f Containerfile -t muspy:dev .`
+- `podman compose -f compose.yml config`
+- `podman compose -f compose.yml up -d db; podman compose -f compose.yml run --rm web python manage.py check; podman compose -f compose.yml down -v`
+- Latest full run passed:
+  - upstream/settings pytest group: 123 passed.
+  - domain/dev/smoke/container/CI pytest group: 46 passed.
+  - coverage: 96%, floor 95%.
+  - Ruff: passed.
+  - Bandit: no issues.
+  - Django check: no issues.
+  - Podman build: passed.
+  - Podman Compose config: passed.
+  - Podman Compose `web python manage.py check` with healthy Postgres 18: passed.
+- Focused checks before docs update:
+  - Last.fm re-review approved `c416a27`.
+  - `uv run pytest tests/test_lastfm_client.py -q`: 38 passed.
+  - `uv run ruff check releasewatch/upstreams/lastfm.py tests/test_lastfm_client.py`: passed.
+  - `uv run pytest tests/test_project_smoke.py -q -W always`: 3 passed, no warnings.
+  - `uv run pytest tests/test_container_files.py::test_compose_wires_database_health_env_and_web_port -q`: passed.
+  - `podman build -f Containerfile -t muspy:dev .`: passed.
+  - `podman compose -f compose.yml config`: passed.
+  - `podman compose -f compose.yml run --rm web python manage.py check`: passed after db was healthy.
 - `.env` exists locally from `.env.example`
-- `podman-compose`, `podman`, and `docker` are not installed on this machine, so Task 10 container runtime verification could not run locally
+- Podman CLI 5.8.1 installed with Chocolatey.
+- Podman machine `podman-machine-default` exists and was started.
+- Docker Compose v5.1.4 installed with Winget as Podman Compose provider. Current shell may need this path prepended until restarted: `C:\Users\blind\AppData\Local\Microsoft\WinGet\Packages\Docker.DockerCompose_Microsoft.Winget.Source_8wekyb3d8bbwe`.
 - `git status --short --untracked-files=all`
