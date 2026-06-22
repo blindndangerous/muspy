@@ -5,12 +5,15 @@ from django.conf import settings
 
 from releasewatch.upstreams.base import (
     FixedIntervalThrottle,
+    LockedThrottle,
     UpstreamArtist,
     UpstreamArtistAlias,
     UpstreamClient,
     UpstreamReleaseGroup,
     parse_partial_date,
 )
+
+_DEFAULT_THROTTLE = LockedThrottle(FixedIntervalThrottle(1.0))
 
 
 class MusicBrainzClient(UpstreamClient):
@@ -30,7 +33,7 @@ class MusicBrainzClient(UpstreamClient):
             provider="musicbrainz",
             http_client=http_client,
             timeout=timeout if timeout is not None else settings.UPSTREAM_HTTP_TIMEOUT_SECONDS,
-            throttle=throttle or FixedIntervalThrottle(1.0),
+            throttle=throttle if throttle is not None else _DEFAULT_THROTTLE,
             rate_limit_status_codes={429, 503},
         )
 
@@ -48,6 +51,7 @@ class MusicBrainzClient(UpstreamClient):
         limit: int = 10,
         offset: int = 0,
     ) -> list[UpstreamArtist]:
+        _validate_pagination(limit=limit, offset=offset)
         payload = self.get_json(
             "/artist",
             params={
@@ -66,6 +70,7 @@ class MusicBrainzClient(UpstreamClient):
         limit: int = 100,
         offset: int = 0,
     ) -> list[UpstreamReleaseGroup]:
+        _validate_pagination(limit=limit, offset=offset)
         payload = self.get_json(
             "/release-group",
             params={
@@ -88,6 +93,13 @@ class MusicBrainzClient(UpstreamClient):
         return _release_group_from_payload(payload)
 
 
+def _validate_pagination(*, limit: int, offset: int) -> None:
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if offset < 0:
+        raise ValueError("offset must be greater than or equal to 0")
+
+
 def _artist_from_payload(payload: dict[str, Any]) -> UpstreamArtist:
     return UpstreamArtist(
         mbid=payload.get("id", ""),
@@ -97,7 +109,7 @@ def _artist_from_payload(payload: dict[str, Any]) -> UpstreamArtist:
         artist_type=payload.get("type", ""),
         country=payload.get("country", ""),
         aliases=[_alias_from_payload(alias) for alias in payload.get("aliases", [])],
-        raw_payload=payload,
+        raw_payload=payload.copy(),
     )
 
 
@@ -122,5 +134,5 @@ def _release_group_from_payload(payload: dict[str, Any]) -> UpstreamReleaseGroup
         secondary_types=list(payload.get("secondary-types", [])),
         first_release_date=first_release_date,
         first_release_precision=first_release_precision,
-        raw_payload=payload,
+        raw_payload=payload.copy(),
     )

@@ -10,11 +10,20 @@ from releasewatch.upstreams import (
     UpstreamRateLimited,
     UpstreamReleaseGroup,
 )
-from releasewatch.upstreams.musicbrainz import MusicBrainzClient
+from releasewatch.upstreams.base import FixedIntervalThrottle, LockedThrottle
+from releasewatch.upstreams.musicbrainz import (
+    MusicBrainzClient,
+    _artist_from_payload,
+    _release_group_from_payload,
+)
 
 USER_AGENT = "muspy-test/1.0 (https://example.invalid/contact)"
 ARTIST_MBID = "0b7f80cf-65c3-4d40-99ca-775f7d30c079"
 RELEASE_GROUP_MBID = "9f16e52e-0d5b-4caa-999c-a6c5f3c2b75f"
+
+
+def _instant_throttle():
+    return FixedIntervalThrottle(0.0)
 
 
 def test_lookup_artist_requests_artist_endpoint_with_json_and_user_agent():
@@ -40,6 +49,7 @@ def test_lookup_artist_requests_artist_endpoint_with_json_and_user_agent():
     client = MusicBrainzClient(
         user_agent=USER_AGENT,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
     )
 
     artist = client.lookup_artist(ARTIST_MBID)
@@ -89,6 +99,7 @@ def test_lookup_artist_maps_aliases_and_keeps_unmodeled_fields_in_raw_payload():
     client = MusicBrainzClient(
         user_agent=USER_AGENT,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
     )
 
     artist = client.lookup_artist(ARTIST_MBID)
@@ -133,6 +144,7 @@ def test_browse_release_groups_maps_first_release_date_and_precision():
     client = MusicBrainzClient(
         user_agent=USER_AGENT,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
     )
 
     release_groups = client.browse_release_groups(ARTIST_MBID, limit=25, offset=50)
@@ -176,6 +188,7 @@ def test_lookup_release_group_maps_release_group_payload():
     client = MusicBrainzClient(
         user_agent=USER_AGENT,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
     )
 
     release_group = client.lookup_release_group(RELEASE_GROUP_MBID)
@@ -193,6 +206,7 @@ def test_musicbrainz_maps_503_to_rate_limited():
     client = MusicBrainzClient(
         user_agent=USER_AGENT,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
     )
 
     with pytest.raises(UpstreamRateLimited) as exc_info:
@@ -204,6 +218,10 @@ def test_musicbrainz_maps_503_to_rate_limited():
 def test_musicbrainz_default_throttle_waits_between_calls(monkeypatch):
     current = {"value": 10.0}
     sleeps = []
+    monkeypatch.setattr(
+        "releasewatch.upstreams.musicbrainz._DEFAULT_THROTTLE",
+        LockedThrottle(FixedIntervalThrottle(1.0)),
+    )
     monkeypatch.setattr("releasewatch.upstreams.base.time.monotonic", lambda: current["value"])
 
     def fake_sleep(seconds):
@@ -234,6 +252,47 @@ def test_musicbrainz_default_throttle_waits_between_calls(monkeypatch):
     assert sleeps == [1.0]
 
 
+def test_musicbrainz_default_throttle_is_shared_across_client_instances(monkeypatch):
+    current = {"value": 10.0}
+    sleeps = []
+    monkeypatch.setattr(
+        "releasewatch.upstreams.musicbrainz._DEFAULT_THROTTLE",
+        LockedThrottle(FixedIntervalThrottle(1.0)),
+    )
+    monkeypatch.setattr("releasewatch.upstreams.base.time.monotonic", lambda: current["value"])
+
+    def fake_sleep(seconds):
+        sleeps.append(seconds)
+        current["value"] += seconds
+
+    monkeypatch.setattr("releasewatch.upstreams.base.time.sleep", fake_sleep)
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": ARTIST_MBID,
+                "name": "Fugazi",
+                "sort-name": "Fugazi",
+                "aliases": [],
+            },
+        )
+
+    first_client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    second_client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    first_client.lookup_artist(ARTIST_MBID)
+    second_client.lookup_artist(ARTIST_MBID)
+
+    assert sleeps == [1.0]
+
+
 def test_search_artists_sends_query_limit_offset_and_json_format():
     seen = {}
 
@@ -257,6 +316,7 @@ def test_search_artists_sends_query_limit_offset_and_json_format():
     client = MusicBrainzClient(
         user_agent=USER_AGENT,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
     )
 
     artists = client.search_artists("artist:Fugazi", limit=7, offset=14)
@@ -271,3 +331,74 @@ def test_search_artists_sends_query_limit_offset_and_json_format():
         },
     }
     assert [artist.mbid for artist in artists] == [ARTIST_MBID]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"limit": 0},
+        {"limit": 101},
+        {"offset": -1},
+    ],
+)
+def test_search_artists_rejects_invalid_limit_and_offset(kwargs):
+    client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json={}))
+        ),
+        throttle=_instant_throttle(),
+    )
+
+    with pytest.raises(ValueError):
+        client.search_artists("artist:Fugazi", **kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"limit": 0},
+        {"limit": 101},
+        {"offset": -1},
+    ],
+)
+def test_browse_release_groups_rejects_invalid_limit_and_offset(kwargs):
+    client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json={}))
+        ),
+        throttle=_instant_throttle(),
+    )
+
+    with pytest.raises(ValueError):
+        client.browse_release_groups(ARTIST_MBID, **kwargs)
+
+
+def test_artist_raw_payload_is_copied_before_storage():
+    payload = {
+        "id": ARTIST_MBID,
+        "name": "Fugazi",
+        "sort-name": "Fugazi",
+        "aliases": [],
+    }
+
+    artist = _artist_from_payload(payload)
+    payload["name"] = "Changed"
+
+    assert artist.raw_payload["name"] == "Fugazi"
+
+
+def test_release_group_raw_payload_is_copied_before_storage():
+    payload = {
+        "id": RELEASE_GROUP_MBID,
+        "title": "Repeater",
+        "primary-type": "Album",
+        "secondary-types": [],
+        "first-release-date": "1990",
+    }
+
+    release_group = _release_group_from_payload(payload)
+    payload["title"] = "Changed"
+
+    assert release_group.raw_payload["title"] == "Repeater"

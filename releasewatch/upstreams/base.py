@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass
 from datetime import date
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -122,6 +123,16 @@ class FixedIntervalThrottle:
         self._last_called_at = now
 
 
+class LockedThrottle:
+    def __init__(self, throttle: FixedIntervalThrottle) -> None:
+        self._throttle = throttle
+        self._lock = Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            self._throttle.wait()
+
+
 class UpstreamClient:
     def __init__(
         self,
@@ -131,7 +142,7 @@ class UpstreamClient:
         provider: str | None = None,
         http_client: httpx.Client | None = None,
         timeout: httpx.Timeout | float | None = None,
-        throttle: FixedIntervalThrottle | None = None,
+        throttle: FixedIntervalThrottle | LockedThrottle | None = None,
         rate_limit_status_codes: set[int] | None = None,
     ) -> None:
         if not user_agent:
