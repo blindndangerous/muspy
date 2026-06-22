@@ -4,7 +4,7 @@ Last updated: 2026-06-21
 
 ## Current Phase
 
-Domain models complete.
+Upstream client implementation planned. Domain models complete.
 
 ## Repository
 
@@ -70,10 +70,12 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - `9bdd01d` - `feat: add artist and import domain models`
 - `1b42d5f` - `feat: add release and notification domain models`
 - `8c60f14` - `feat: register domain models in admin`
+- `e1f07d4` - `test: ratchet coverage floor to 95`
+- `a827db2` - `docs: add upstream client plan`
 
 ## Next Required Step
 
-Write and review the upstream client implementation plan before adding MusicBrainz, ListenBrainz, or Last.fm clients.
+Continue with Task 1 in docs/superpowers/plans/2026-06-21-upstream-clients-plan.md.
 
 ## Open Questions
 
