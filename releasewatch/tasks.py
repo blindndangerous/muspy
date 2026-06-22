@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from releasewatch.imports import (
@@ -56,7 +57,7 @@ def enqueue_due_provider_imports(batch_size: int = 100) -> int:
         accounts = list(
             ProviderAccount.objects.select_for_update(skip_locked=True)
             .filter(status=ProviderAccount.Status.ACTIVE)
-            .order_by("last_imported_at", "id")[:batch_size]
+            .order_by(F("last_imported_at").asc(nulls_first=True), "id")[:batch_size]
         )
     for account in accounts:
         import_provider_account.delay(account.id)
