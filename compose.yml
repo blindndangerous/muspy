@@ -7,11 +7,17 @@ x-app: &app
     dockerfile: Containerfile
   environment:
     - DATABASE_URL=postgresql://muspy:muspy@db:5432/muspy
+    - CELERY_BROKER_URL=amqp://muspy:muspy@broker:5672//
+    - REDIS_URL=redis://redis:6379/0
     - DEBUG=1
     - SECRET_KEY=dev-only-change-me
     - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
   depends_on:
     db:
+      condition: service_healthy
+    broker:
+      condition: service_healthy
+    redis:
       condition: service_healthy
 
 services:
@@ -30,19 +36,59 @@ services:
     volumes:
       - muspy-postgres-data:/var/lib/postgresql
 
+  broker:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: muspy
+      RABBITMQ_DEFAULT_PASS: muspy
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - muspy-rabbitmq-data:/var/lib/rabbitmq
+
+  redis:
+    image: redis:8
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - muspy-redis-data:/data
+
   web:
     <<: *app
     command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
     ports:
       - "8000:8000"
 
-  worker:
+  worker-imports:
     <<: *app
-    command: ["python", "manage.py", "check"]
+    command: ["celery", "-A", "config", "worker", "-Q", "imports", "--loglevel=info"]
 
-  scheduler:
+  worker-sync:
     <<: *app
-    command: ["python", "manage.py", "check"]
+    command: ["celery", "-A", "config", "worker", "-Q", "sync", "--loglevel=info"]
+
+  worker-notifications:
+    <<: *app
+    command: ["celery", "-A", "config", "worker", "-Q", "notifications", "--loglevel=info"]
+
+  worker-maintenance:
+    <<: *app
+    command: ["celery", "-A", "config", "worker", "-Q", "maintenance", "--loglevel=info"]
+
+  beat:
+    <<: *app
+    command: ["celery", "-A", "config", "beat", "--loglevel=info"]
 
 volumes:
   muspy-postgres-data:
+  muspy-rabbitmq-data:
+  muspy-redis-data:
