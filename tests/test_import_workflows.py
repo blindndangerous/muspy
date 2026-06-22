@@ -52,6 +52,24 @@ class FakeFailingListenBrainzClient:
         raise RuntimeError(f"{token} denied for {username}")
 
 
+class ClosableLastFmClient(FakeLastFmClient):
+    def __init__(self, rows):
+        super().__init__(rows)
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class ClosableListenBrainzClient(FakeListenBrainzClient):
+    def __init__(self, rows):
+        super().__init__(rows)
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
 @pytest.mark.django_db
 def test_plain_text_import_creates_candidates_without_duplicates():
     user = create_user()
@@ -298,6 +316,19 @@ def test_lastfm_import_failure_returns_failed_run_without_reraising():
 
 
 @pytest.mark.django_db
+def test_lastfm_import_closes_owned_default_client(mocker):
+    user = create_user("lastfm-close-user")
+    client = ClosableLastFmClient([])
+    mocker.patch("releasewatch.imports.LastFmClient", return_value=client)
+
+    from releasewatch.imports import start_lastfm_import
+
+    start_lastfm_import(user=user, username="listener")
+
+    assert client.closed is True
+
+
+@pytest.mark.django_db
 def test_listenbrainz_one_shot_import_does_not_persist_token():
     user = create_user("listenbrainz-user")
     client = FakeListenBrainzClient(
@@ -345,6 +376,23 @@ def test_listenbrainz_import_failure_redacts_token_and_returns_failed_run():
     assert "private-token" not in run.error_message
     assert "private-token" not in str(run.raw_payload)
     assert "[redacted] denied for listener" in run.error_message
+
+
+@pytest.mark.django_db
+def test_listenbrainz_import_closes_owned_default_client(mocker):
+    user = create_user("listenbrainz-close-user")
+    client = ClosableListenBrainzClient([])
+    mocker.patch("releasewatch.imports.ListenBrainzClient", return_value=client)
+
+    from releasewatch.imports import start_listenbrainz_import
+
+    start_listenbrainz_import(
+        user=user,
+        username="listener",
+        token="private-token",  # noqa: S106
+    )
+
+    assert client.closed is True
 
 
 @pytest.mark.django_db

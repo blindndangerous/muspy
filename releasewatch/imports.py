@@ -50,6 +50,7 @@ def start_lastfm_import(
     username: str,
     client: LastFmClient | None = None,
 ) -> ImportRun:
+    owns_client = client is None
     client = client or LastFmClient()
     run = ImportRun.objects.create(
         user=user,
@@ -64,6 +65,9 @@ def start_lastfm_import(
         mark_import_failed(run=run, message=str(error))
         run.refresh_from_db()
         return run
+    finally:
+        if owns_client:
+            client.close()
     run.refresh_from_db()
     return run
 
@@ -76,6 +80,7 @@ def start_listenbrainz_import(
     client: ListenBrainzClient | None = None,
     persist_token: bool = False,
 ) -> ImportRun:
+    owns_client = client is None
     client = client or ListenBrainzClient()
     if persist_token:
         ProviderAccount.objects.update_or_create(
@@ -103,6 +108,9 @@ def start_listenbrainz_import(
         mark_import_failed(run=run, message=str(error).replace(token, "[redacted]"))
         run.refresh_from_db()
         return run
+    finally:
+        if owns_client:
+            client.close()
     run.refresh_from_db()
     return run
 
