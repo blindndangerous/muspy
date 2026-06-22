@@ -10,7 +10,7 @@ from releasewatch.imports import (
     reject_import_candidate,
     start_plain_text_import,
 )
-from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun
+from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun, ProviderAccount
 from releasewatch.upstreams.base import ImportedArtist
 
 
@@ -20,6 +20,26 @@ def create_user(username="import-user"):
         email=f"{username}@example.test",
         password=None,
     )
+
+
+class FakeLastFmClient:
+    def __init__(self, rows):
+        self.rows = rows
+        self.calls = []
+
+    def get_user_top_artists(self, username, *, limit=100, page=1):
+        self.calls.append((username, limit, page))
+        return self.rows
+
+
+class FakeListenBrainzClient:
+    def __init__(self, rows):
+        self.rows = rows
+        self.calls = []
+
+    def get_user_artists(self, username, token, *, count=100, offset=0):
+        self.calls.append((username, token, count, offset))
+        return self.rows
 
 
 @pytest.mark.django_db
@@ -225,3 +245,82 @@ def test_imported_artist_with_non_string_mbid_stays_pending_without_aborting_run
     run.refresh_from_db()
     assert run.status == ImportRun.Status.PENDING_REVIEW
     assert run.candidates.get().artist is None
+
+
+@pytest.mark.django_db
+def test_lastfm_import_uses_username_and_server_key_without_storing_credentials():
+    user = create_user("lastfm-user")
+    client = FakeLastFmClient(
+        [
+            ImportedArtist(
+                source_name="Fugazi",
+                source_identifier="lastfm:fugazi",
+                mbid="",
+                raw_payload={"name": "Fugazi"},
+            )
+        ]
+    )
+
+    from releasewatch.imports import start_lastfm_import
+
+    run = start_lastfm_import(user=user, username="listener", client=client)
+
+    assert run.source == ImportRun.Source.LASTFM
+    assert client.calls == [("listener", 100, 1)]
+    assert run.candidates.get().source_name == "Fugazi"
+    assert ProviderAccount.objects.filter(user=user).count() == 0
+
+
+@pytest.mark.django_db
+def test_listenbrainz_one_shot_import_does_not_persist_token():
+    user = create_user("listenbrainz-user")
+    client = FakeListenBrainzClient(
+        [
+            ImportedArtist(
+                source_name="Unwound",
+                source_identifier="listenbrainz:unwound",
+                mbid="",
+                raw_payload={"artist_name": "Unwound"},
+            )
+        ]
+    )
+
+    from releasewatch.imports import start_listenbrainz_import
+
+    run = start_listenbrainz_import(
+        user=user,
+        username="listener",
+        token="private-token",  # noqa: S106
+        client=client,
+        persist_token=False,
+    )
+
+    assert run.source == ImportRun.Source.LISTENBRAINZ
+    assert client.calls == [("listener", "private-token", 100, 0)]
+    assert run.candidates.get().source_name == "Unwound"
+    assert ProviderAccount.objects.filter(user=user).count() == 0
+
+
+@pytest.mark.django_db
+def test_listenbrainz_recurring_import_stores_encrypted_token(settings):
+    from cryptography.fernet import Fernet
+
+    from releasewatch.imports import start_listenbrainz_import
+
+    settings.PROVIDER_TOKEN_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    user = create_user("recurring-listenbrainz-user")
+    client = FakeListenBrainzClient([])
+
+    start_listenbrainz_import(
+        user=user,
+        username="listener",
+        token="private-token",  # noqa: S106
+        client=client,
+        persist_token=True,
+    )
+
+    account = ProviderAccount.objects.get(user=user)
+    assert account.provider == ProviderAccount.Provider.LISTENBRAINZ
+    assert account.external_username == "listener"
+    assert account.token_encrypted
+    assert "private-token" not in account.token_encrypted

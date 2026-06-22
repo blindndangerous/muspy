@@ -6,8 +6,11 @@ from uuid import UUID
 from django.db import transaction
 from django.utils import timezone
 
-from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun
+from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun, ProviderAccount
+from releasewatch.provider_tokens import encrypt_provider_token, redact_provider_secrets
 from releasewatch.upstreams.base import ImportedArtist
+from releasewatch.upstreams.lastfm import LastFmClient
+from releasewatch.upstreams.listenbrainz import ListenBrainzClient
 
 MAX_MODEL_STRING_LENGTH = 255
 IDENTIFIER_HASH_LENGTH = 12
@@ -38,6 +41,67 @@ def start_plain_text_import(*, user, text: str) -> ImportRun:
         for name in names
     ]
     apply_imported_artists(run=run, imported_artists=imported)
+    return run
+
+
+def start_lastfm_import(
+    *,
+    user,
+    username: str,
+    client: LastFmClient | None = None,
+) -> ImportRun:
+    client = client or LastFmClient()
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LASTFM,
+        status=ImportRun.Status.STARTED,
+        raw_payload={"username": username},
+    )
+    try:
+        imported = client.get_user_top_artists(username, limit=100, page=1)
+        apply_imported_artists(run=run, imported_artists=imported)
+    except Exception as error:
+        mark_import_failed(run=run, message=str(error))
+        raise
+    run.refresh_from_db()
+    return run
+
+
+def start_listenbrainz_import(
+    *,
+    user,
+    username: str,
+    token: str,
+    client: ListenBrainzClient | None = None,
+    persist_token: bool = False,
+) -> ImportRun:
+    client = client or ListenBrainzClient()
+    if persist_token:
+        ProviderAccount.objects.update_or_create(
+            user=user,
+            provider=ProviderAccount.Provider.LISTENBRAINZ,
+            external_username=username,
+            defaults={
+                "token_encrypted": encrypt_provider_token(token),
+                "status": ProviderAccount.Status.ACTIVE,
+                "last_error_message": "",
+            },
+        )
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LISTENBRAINZ,
+        status=ImportRun.Status.STARTED,
+        raw_payload={"username": username},
+    )
+    try:
+        imported = client.get_user_artists(username, token, count=100, offset=0)
+        apply_imported_artists(run=run, imported_artists=imported)
+    except Exception as error:
+        run.raw_payload = redact_provider_secrets(run.raw_payload, secret_values=[token])
+        run.save(update_fields=["raw_payload", "updated_at"])
+        mark_import_failed(run=run, message=str(error).replace(token, "[redacted]"))
+        raise
+    run.refresh_from_db()
     return run
 
 
