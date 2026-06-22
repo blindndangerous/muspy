@@ -16,6 +16,14 @@ def test_celery_routes_import_tasks_to_expected_queues():
     assert routes["releasewatch.tasks.enqueue_due_provider_imports"]["queue"] == "maintenance"
 
 
+def test_celery_routes_release_sync_tasks_to_expected_queues():
+    routes = app.conf.task_routes
+
+    assert routes["releasewatch.tasks.sync_artist_releases_task"]["queue"] == "sync"
+    assert routes["releasewatch.tasks.fanout_release_notifications"]["queue"] == "notifications"
+    assert routes["releasewatch.tasks.enqueue_due_artist_syncs"]["queue"] == "maintenance"
+
+
 def test_celery_uses_json_serialization_only():
     assert app.conf.task_serializer == "json"
     assert app.conf.accept_content == ["json"]

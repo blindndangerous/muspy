@@ -192,8 +192,18 @@ CELERY_TASK_ROUTES = {
     "releasewatch.tasks.run_import": {"queue": "imports"},
     "releasewatch.tasks.import_provider_account": {"queue": "imports"},
     "releasewatch.tasks.enqueue_due_provider_imports": {"queue": "maintenance"},
+    "releasewatch.tasks.sync_artist_releases_task": {"queue": "sync"},
+    "releasewatch.tasks.fanout_release_notifications": {"queue": "notifications"},
+    "releasewatch.tasks.enqueue_due_artist_syncs": {"queue": "maintenance"},
 }
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+RELEASE_SYNC_FRESHNESS_HOURS = _env_int(
+    "RELEASE_SYNC_FRESHNESS_HOURS",
+    default=24,
+    minimum=1,
+    maximum=720,
+)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 PROVIDER_TOKEN_ENCRYPTION_KEY = os.environ.get("PROVIDER_TOKEN_ENCRYPTION_KEY", "")
