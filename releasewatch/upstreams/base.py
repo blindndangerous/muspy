@@ -1,10 +1,54 @@
 import time
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 import httpx
 
 from releasewatch.models import DatePrecision, redact_payload
+
+
+@dataclass(frozen=True)
+class UpstreamArtistAlias:
+    name: str
+    sort_name: str
+    locale: str
+    alias_type: str
+    primary: bool
+
+
+@dataclass(frozen=True)
+class UpstreamArtist:
+    mbid: str
+    name: str
+    sort_name: str
+    disambiguation: str
+    artist_type: str
+    country: str
+    aliases: list[UpstreamArtistAlias]
+    raw_payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class UpstreamReleaseGroup:
+    mbid: str
+    title: str
+    primary_type: str
+    secondary_types: list[str]
+    first_release_date: date | None
+    first_release_precision: DatePrecision | str
+    raw_payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class UpstreamRelease:
+    mbid: str
+    country: str
+    release_date: date | None
+    release_date_precision: DatePrecision | str
+    status: str
+    media_format: str
+    raw_payload: dict[str, Any]
 
 
 class UpstreamError(Exception):
