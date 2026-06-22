@@ -140,14 +140,22 @@ def test_upstream_client_merges_custom_headers():
     }
 
 
-def test_upstream_client_rejects_off_origin_absolute_url():
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://other-provider.test/path",
+        "http://provider.test/path",
+        "https://provider.test:444/path",
+    ],
+)
+def test_upstream_client_rejects_off_origin_absolute_url(url):
     client = UpstreamClient(
         base_url="https://provider.test",
         user_agent="muspy/0.1.0 (https://example.invalid/contact)",
     )
 
     with pytest.raises(ValueError, match="absolute URLs"):
-        client.get_json("https://other-provider.test/path")
+        client.get_json(url)
 
     client.close()
 

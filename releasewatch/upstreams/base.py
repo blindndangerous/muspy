@@ -162,7 +162,17 @@ class UpstreamClient:
 
     def _url_for_path(self, path: str) -> str:
         if path.startswith(("http://", "https://")):
-            if httpx.URL(path).host != httpx.URL(self.base_url).host:
+            request_url = httpx.URL(path)
+            base_url = httpx.URL(self.base_url)
+            if (
+                request_url.scheme,
+                request_url.host,
+                request_url.port,
+            ) != (
+                base_url.scheme,
+                base_url.host,
+                base_url.port,
+            ):
                 raise ValueError("UpstreamClient does not allow off-origin absolute URLs")
             return path
         return f"{self.base_url}/{path.lstrip('/')}"
