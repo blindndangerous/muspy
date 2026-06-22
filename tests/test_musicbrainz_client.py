@@ -3,11 +3,13 @@ from datetime import date
 import httpx
 import pytest
 
+import releasewatch.upstreams.musicbrainz as musicbrainz
 from releasewatch.models import DatePrecision
 from releasewatch.upstreams import (
     UpstreamArtist,
     UpstreamArtistAlias,
     UpstreamRateLimited,
+    UpstreamRelease,
     UpstreamReleaseGroup,
 )
 from releasewatch.upstreams.base import FixedIntervalThrottle, LockedThrottle
@@ -20,6 +22,7 @@ from releasewatch.upstreams.musicbrainz import (
 USER_AGENT = "muspy-test/1.0 (https://example.invalid/contact)"
 ARTIST_MBID = "0b7f80cf-65c3-4d40-99ca-775f7d30c079"
 RELEASE_GROUP_MBID = "9f16e52e-0d5b-4caa-999c-a6c5f3c2b75f"
+RELEASE_MBID = "c1b8fd08-3d2c-4c64-8a30-a48c46335c8c"
 
 
 def _instant_throttle():
@@ -199,6 +202,66 @@ def test_lookup_release_group_maps_release_group_payload():
     assert release_group.first_release_precision == DatePrecision.DAY
 
 
+def test_browse_releases_by_release_group_maps_date_status_country_and_media_format():
+    seen = {}
+
+    def handler(request):
+        seen["path"] = request.url.path
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(
+            200,
+            json={
+                "releases": [
+                    {
+                        "id": RELEASE_MBID,
+                        "country": "US",
+                        "date": "1990-04-19",
+                        "status": "Official",
+                        "media": [{"format": "CD"}, {"format": "Digital Media"}],
+                        "release-group": {"id": RELEASE_GROUP_MBID, "title": "Repeater"},
+                    }
+                ]
+            },
+        )
+
+    client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        throttle=_instant_throttle(),
+    )
+
+    releases = client.browse_releases_by_release_group(
+        RELEASE_GROUP_MBID,
+        status="official",
+        limit=25,
+        offset=50,
+    )
+
+    assert seen == {
+        "path": "/ws/2/release",
+        "params": {
+            "release-group": RELEASE_GROUP_MBID,
+            "status": "official",
+            "limit": "25",
+            "offset": "50",
+            "inc": "media+release-groups",
+            "fmt": "json",
+        },
+    }
+    assert releases == [
+        UpstreamRelease(
+            mbid=RELEASE_MBID,
+            country="US",
+            release_date=date(1990, 4, 19),
+            release_date_precision=DatePrecision.DAY,
+            status="Official",
+            media_format="CD",
+            raw_payload=releases[0].raw_payload,
+        )
+    ]
+    assert releases[0].raw_payload["release-group"]["id"] == RELEASE_GROUP_MBID
+
+
 def test_musicbrainz_maps_503_to_rate_limited():
     def handler(request):
         return httpx.Response(503, json={"error": "rate limited"})
@@ -375,6 +438,27 @@ def test_browse_release_groups_rejects_invalid_limit_and_offset(kwargs):
         client.browse_release_groups(ARTIST_MBID, **kwargs)
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"limit": 0},
+        {"limit": 101},
+        {"offset": -1},
+    ],
+)
+def test_browse_releases_by_release_group_rejects_invalid_limit_and_offset(kwargs):
+    client = MusicBrainzClient(
+        user_agent=USER_AGENT,
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json={}))
+        ),
+        throttle=_instant_throttle(),
+    )
+
+    with pytest.raises(ValueError):
+        client.browse_releases_by_release_group(RELEASE_GROUP_MBID, **kwargs)
+
+
 def test_artist_raw_payload_is_copied_before_storage():
     payload = {
         "id": ARTIST_MBID,
@@ -409,3 +493,22 @@ def test_release_group_raw_payload_is_copied_before_storage():
     assert release_group.raw_payload["title"] == "Repeater"
     assert release_group.raw_payload["secondary-types"] == ["Compilation"]
     assert release_group.raw_payload["nested"] == {"value": "kept"}
+
+
+def test_release_raw_payload_is_copied_before_storage():
+    payload = {
+        "id": RELEASE_MBID,
+        "country": "US",
+        "date": "1990-04-19",
+        "status": "Official",
+        "media": [{"format": "CD", "nested": {"value": "kept"}}],
+    }
+
+    release = musicbrainz._release_from_payload(payload)
+    payload["country"] = "GB"
+    payload["media"][0]["format"] = "Changed"
+    payload["media"][0]["nested"]["value"] = "Changed nested"
+
+    assert release.raw_payload["country"] == "US"
+    assert release.raw_payload["media"][0]["format"] == "CD"
+    assert release.raw_payload["media"][0]["nested"] == {"value": "kept"}

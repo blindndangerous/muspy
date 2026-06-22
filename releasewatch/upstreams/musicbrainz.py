@@ -10,6 +10,7 @@ from releasewatch.upstreams.base import (
     UpstreamArtist,
     UpstreamArtistAlias,
     UpstreamClient,
+    UpstreamRelease,
     UpstreamReleaseGroup,
     parse_partial_date,
 )
@@ -93,6 +94,28 @@ class MusicBrainzClient(UpstreamClient):
         )
         return _release_group_from_payload(payload)
 
+    def browse_releases_by_release_group(
+        self,
+        release_group_mbid: str,
+        *,
+        status: str = "official",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[UpstreamRelease]:
+        _validate_pagination(limit=limit, offset=offset)
+        payload = self.get_json(
+            "/release",
+            params={
+                "release-group": release_group_mbid,
+                "status": status,
+                "limit": limit,
+                "offset": offset,
+                "inc": "media+release-groups",
+                "fmt": "json",
+            },
+        )
+        return [_release_from_payload(release) for release in payload.get("releases", [])]
+
 
 def _validate_pagination(*, limit: int, offset: int) -> None:
     if not 1 <= limit <= 100:
@@ -137,3 +160,24 @@ def _release_group_from_payload(payload: dict[str, Any]) -> UpstreamReleaseGroup
         first_release_precision=first_release_precision,
         raw_payload=deepcopy(payload),
     )
+
+
+def _release_from_payload(payload: dict[str, Any]) -> UpstreamRelease:
+    release_date, release_date_precision = parse_partial_date(payload.get("date", ""))
+    return UpstreamRelease(
+        mbid=payload.get("id", ""),
+        country=payload.get("country", ""),
+        release_date=release_date,
+        release_date_precision=release_date_precision,
+        status=payload.get("status", ""),
+        media_format=_media_format_from_payload(payload),
+        raw_payload=deepcopy(payload),
+    )
+
+
+def _media_format_from_payload(payload: dict[str, Any]) -> str:
+    for medium in payload.get("media", []):
+        media_format = medium.get("format", "")
+        if media_format:
+            return media_format
+    return ""
