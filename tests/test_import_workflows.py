@@ -42,6 +42,16 @@ class FakeListenBrainzClient:
         return self.rows
 
 
+class FakeFailingLastFmClient:
+    def get_user_top_artists(self, username, *, limit=100, page=1):
+        raise RuntimeError(f"{username} unavailable")
+
+
+class FakeFailingListenBrainzClient:
+    def get_user_artists(self, username, token, *, count=100, offset=0):
+        raise RuntimeError(f"{token} denied for {username}")
+
+
 @pytest.mark.django_db
 def test_plain_text_import_creates_candidates_without_duplicates():
     user = create_user()
@@ -272,6 +282,22 @@ def test_lastfm_import_uses_username_and_server_key_without_storing_credentials(
 
 
 @pytest.mark.django_db
+def test_lastfm_import_failure_returns_failed_run_without_reraising():
+    user = create_user("lastfm-failure-user")
+
+    from releasewatch.imports import start_lastfm_import
+
+    run = start_lastfm_import(
+        user=user,
+        username="listener",
+        client=FakeFailingLastFmClient(),
+    )
+
+    assert run.status == ImportRun.Status.FAILED
+    assert "listener unavailable" in run.error_message
+
+
+@pytest.mark.django_db
 def test_listenbrainz_one_shot_import_does_not_persist_token():
     user = create_user("listenbrainz-user")
     client = FakeListenBrainzClient(
@@ -299,6 +325,26 @@ def test_listenbrainz_one_shot_import_does_not_persist_token():
     assert client.calls == [("listener", "private-token", 100, 0)]
     assert run.candidates.get().source_name == "Unwound"
     assert ProviderAccount.objects.filter(user=user).count() == 0
+
+
+@pytest.mark.django_db
+def test_listenbrainz_import_failure_redacts_token_and_returns_failed_run():
+    user = create_user("listenbrainz-failure-user")
+
+    from releasewatch.imports import start_listenbrainz_import
+
+    run = start_listenbrainz_import(
+        user=user,
+        username="listener",
+        token="private-token",  # noqa: S106
+        client=FakeFailingListenBrainzClient(),
+        persist_token=False,
+    )
+
+    assert run.status == ImportRun.Status.FAILED
+    assert "private-token" not in run.error_message
+    assert "private-token" not in str(run.raw_payload)
+    assert "[redacted] denied for listener" in run.error_message
 
 
 @pytest.mark.django_db

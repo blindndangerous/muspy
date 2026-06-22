@@ -62,7 +62,8 @@ def start_lastfm_import(
         apply_imported_artists(run=run, imported_artists=imported)
     except Exception as error:
         mark_import_failed(run=run, message=str(error))
-        raise
+        run.refresh_from_db()
+        return run
     run.refresh_from_db()
     return run
 
@@ -100,7 +101,8 @@ def start_listenbrainz_import(
         run.raw_payload = redact_provider_secrets(run.raw_payload, secret_values=[token])
         run.save(update_fields=["raw_payload", "updated_at"])
         mark_import_failed(run=run, message=str(error).replace(token, "[redacted]"))
-        raise
+        run.refresh_from_db()
+        return run
     run.refresh_from_db()
     return run
 
