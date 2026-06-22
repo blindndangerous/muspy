@@ -27,3 +27,6 @@ uv run python manage.py check --deploy
 uv run coverage run -m pytest
 uv run coverage report
 ```
+
+Coverage is part of the security baseline. The configured floor is 95%, and it
+should only move up.

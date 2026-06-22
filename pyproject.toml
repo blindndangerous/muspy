@@ -34,7 +34,7 @@ source = ["config", "releasewatch"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 85
+fail_under = 95
 
 [tool.ruff]
 target-version = "py314"

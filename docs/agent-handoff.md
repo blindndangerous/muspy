@@ -39,7 +39,7 @@ Create a modern Muspy successor using Django 6, Python 3.14 or 3.13, PostgreSQL 
 - Use tokenized RSS/iCal URLs.
 - Add dev-only admin bootstrap command during implementation.
 - Adopt strict TDD wherever practical.
-- Build broad test coverage and security checks from the start.
+- Build broad test coverage and security checks from the start. Coverage floor is 95% and ratchets up only.
 - Use git commits as checkpoints. Record last known good commit here after each verified phase.
 
 ## Checkpoint Policy
