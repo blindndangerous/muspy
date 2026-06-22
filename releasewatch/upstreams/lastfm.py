@@ -68,7 +68,13 @@ class LastFmClient(UpstreamClient):
         payload = _response_payload(response)
         exception_type = _exception_type_for_lastfm_payload(payload)
         if exception_type is None:
-            return super()._error_for_response(response)
+            exception_type = self._exception_type_for_status(response.status_code)
+            return exception_type(
+                f"{self.provider} returned HTTP {response.status_code}",
+                provider=self.provider,
+                status_code=response.status_code,
+                payload=_redact_api_secret(payload),
+            )
         return exception_type(
             "lastfm returned an API error",
             provider=self.provider,

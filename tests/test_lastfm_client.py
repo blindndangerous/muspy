@@ -287,6 +287,21 @@ def test_api_secret_is_redacted_from_nested_exception_payload_lists():
     assert PRIVATE_VALUE not in str(exc_info.value.payload)
 
 
+@override_settings(LASTFM_API_SECRET=PRIVATE_VALUE)
+def test_api_secret_is_redacted_from_http_error_payload_without_lastfm_code():
+    client = _client_for(
+        lambda request: httpx.Response(
+            500,
+            json={"message": f"upstream included {PRIVATE_VALUE}"},
+        )
+    )
+
+    with pytest.raises(UpstreamUnavailable) as exc_info:
+        client.get_user_top_artists("listener")
+
+    assert PRIVATE_VALUE not in str(exc_info.value.payload)
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
