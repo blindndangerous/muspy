@@ -4,7 +4,7 @@ Last updated: 2026-06-22
 
 ## Current Phase
 
-Upstream clients complete. Domain models complete.
+Sync/import workflow design in progress. Upstream clients complete. Domain models complete.
 
 ## Repository
 
@@ -90,10 +90,11 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 - `ac86608` - `fix: redact lastfm http error payloads`
 - `c416a27` - `fix: harden lastfm payload handling`
 - `cae176c` - `fix: clean smoke warnings and podman db mount`
+- `f5327ab` - `test: ratchet coverage floor to 96`
 
 ## Next Required Step
 
-Write sync/import workflow plan.
+Review `docs/superpowers/specs/2026-06-22-sync-import-workflows-design.md`, then write implementation plan 1 for task infrastructure and import workflow.
 
 ## Open Questions
 
