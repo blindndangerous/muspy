@@ -105,6 +105,20 @@ def test_accept_import_candidate_creates_follow_once():
 
 
 @pytest.mark.django_db
+def test_accept_import_candidate_without_artist_raises():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.PLAIN_TEXT)
+    candidate = ImportCandidate.objects.create(
+        import_run=run,
+        artist=None,
+        source_name="Unknown",
+    )
+
+    with pytest.raises(ValueError, match="no matched artist"):
+        accept_import_candidate(candidate=candidate, user=user)
+
+
+@pytest.mark.django_db
 def test_ignore_import_candidate_marks_candidate_and_follow_ignored():
     user = create_user()
     artist = Artist.objects.create(mbid=uuid4(), name="Fugazi")
@@ -118,6 +132,24 @@ def test_ignore_import_candidate_marks_candidate_and_follow_ignored():
     ignore_import_candidate(candidate=candidate, user=user)
 
     assert Follow.objects.get(user=user, artist=artist).is_ignored is True
+    candidate.refresh_from_db()
+    assert candidate.review_state == ImportCandidate.ReviewState.IGNORED
+
+
+@pytest.mark.django_db
+def test_ignore_import_candidate_without_artist_marks_candidate_only():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.PLAIN_TEXT)
+    candidate = ImportCandidate.objects.create(
+        import_run=run,
+        artist=None,
+        source_name="Unknown",
+    )
+
+    follow = ignore_import_candidate(candidate=candidate, user=user)
+
+    assert follow is None
+    assert Follow.objects.filter(user=user).count() == 0
     candidate.refresh_from_db()
     assert candidate.review_state == ImportCandidate.ReviewState.IGNORED
 
@@ -274,6 +306,25 @@ def test_imported_artist_with_non_string_mbid_stays_pending_without_aborting_run
     run.refresh_from_db()
     assert run.status == ImportRun.Status.PENDING_REVIEW
     assert run.candidates.get().artist is None
+
+
+@pytest.mark.django_db
+def test_reimported_artist_updates_existing_candidate():
+    user = create_user()
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+
+    first = apply_imported_artists(
+        run=run,
+        imported_artists=[ImportedArtist("Fugazi", "lastfm:fugazi", "", {"rank": 1})],
+    )
+    second = apply_imported_artists(
+        run=run,
+        imported_artists=[ImportedArtist("Fugazi", "lastfm:fugazi", "", {"rank": 2})],
+    )
+
+    assert first.created_count == 1
+    assert second.updated_count == 1
+    assert run.candidates.get().raw_payload == {"rank": 2}
 
 
 @pytest.mark.django_db
@@ -443,6 +494,37 @@ def test_run_import_task_uses_import_run_id_for_plain_text():
 
 
 @pytest.mark.django_db
+def test_run_import_task_skips_already_pending_review_run():
+    user = create_user("task-skip-user")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.PLAIN_TEXT,
+        status=ImportRun.Status.PENDING_REVIEW,
+        raw_payload={"text": "Fugazi"},
+    )
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    assert run.candidates.count() == 0
+
+
+@pytest.mark.django_db
+def test_run_import_task_marks_unsupported_source_failed():
+    user = create_user("task-unsupported-user")
+    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    run.refresh_from_db()
+    assert run.status == ImportRun.Status.FAILED
+    assert "Unsupported import source" in run.error_message
+
+
+@pytest.mark.django_db
 def test_import_provider_account_marks_missing_token_as_failed():
     user = create_user("provider-task-user")
     account = ProviderAccount.objects.create(
@@ -458,6 +540,103 @@ def test_import_provider_account_marks_missing_token_as_failed():
     account.refresh_from_db()
     assert account.status == ProviderAccount.Status.FAILED
     assert "token" in account.last_error_message.lower()
+
+
+@pytest.mark.django_db
+def test_import_provider_account_skips_inactive_account():
+    user = create_user("provider-inactive-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="listener",
+        status=ProviderAccount.Status.REVOKED,
+    )
+
+    from releasewatch.tasks import import_provider_account
+
+    import_provider_account(account.id)
+
+    account.refresh_from_db()
+    assert account.status == ProviderAccount.Status.REVOKED
+    assert account.last_imported_at is None
+
+
+@pytest.mark.django_db
+def test_import_provider_account_records_last_imported_on_success(mocker):
+    user = create_user("provider-success-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LASTFM,
+        external_username="listener",
+        last_error_message="old error",
+    )
+    import_run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LASTFM,
+        status=ImportRun.Status.PENDING_REVIEW,
+    )
+    start = mocker.patch("releasewatch.tasks.start_lastfm_import", return_value=import_run)
+
+    from releasewatch.tasks import import_provider_account
+
+    import_provider_account(account.id)
+
+    account.refresh_from_db()
+    start.assert_called_once_with(user=user, username="listener")
+    assert account.status == ProviderAccount.Status.ACTIVE
+    assert account.last_imported_at is not None
+    assert account.last_error_message == ""
+
+
+@pytest.mark.django_db
+def test_import_provider_account_uses_decrypted_listenbrainz_token(settings, mocker):
+    from cryptography.fernet import Fernet
+
+    from releasewatch.provider_tokens import encrypt_provider_token
+
+    settings.PROVIDER_TOKEN_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    user = create_user("provider-listenbrainz-success-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider=ProviderAccount.Provider.LISTENBRAINZ,
+        external_username="listener",
+        token_encrypted=encrypt_provider_token("private-token"),
+    )
+    import_run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LISTENBRAINZ,
+        status=ImportRun.Status.PENDING_REVIEW,
+    )
+    start = mocker.patch("releasewatch.tasks.start_listenbrainz_import", return_value=import_run)
+
+    from releasewatch.tasks import import_provider_account
+
+    import_provider_account(account.id)
+
+    start.assert_called_once_with(
+        user=user,
+        username="listener",
+        token="private-token",  # noqa: S106
+        persist_token=False,
+    )
+
+
+@pytest.mark.django_db
+def test_import_provider_account_marks_unsupported_provider_failed():
+    user = create_user("provider-unsupported-user")
+    account = ProviderAccount.objects.create(
+        user=user,
+        provider="unsupported",
+        external_username="listener",
+    )
+
+    from releasewatch.tasks import import_provider_account
+
+    import_provider_account(account.id)
+
+    account.refresh_from_db()
+    assert account.status == ProviderAccount.Status.FAILED
+    assert "Unsupported provider" in account.last_error_message
 
 
 @pytest.mark.django_db

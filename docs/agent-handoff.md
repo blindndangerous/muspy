@@ -4,7 +4,7 @@ Last updated: 2026-06-22
 
 ## Current Phase
 
-Task infrastructure and import workflow plan in progress. Sync/import workflow design complete. Upstream clients complete. Domain models complete.
+Task infrastructure and import workflow plan complete. Sync/import workflow design complete. Upstream clients complete. Domain models complete.
 
 ## Repository
 
@@ -39,7 +39,7 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 - Use tokenized RSS/iCal URLs.
 - Add dev-only admin bootstrap command during implementation.
 - Adopt strict TDD wherever practical.
-- Build broad test coverage and security checks from the start. Coverage floor is 96% and ratchets up only.
+- Build broad test coverage and security checks from the start. Coverage floor is 97% and ratchets up only.
 - Use git commits as checkpoints. Record last known good commit here after each verified phase.
 
 ## Checkpoint Policy
@@ -92,10 +92,19 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 - `cae176c` - `fix: clean smoke warnings and podman db mount`
 - `f5327ab` - `test: ratchet coverage floor to 96`
 - `dcc7141` - `docs: add sync import workflow design`
+- `4669775` - `docs: add task import workflow plan`
+- `6d3650e` - `chore: require current uv`
+- `f40ed5d` - `fix: preserve bounded import identifiers`
+- `aeeb9f9` - `feat: add provider import services`
+- `dd151ab` - `fix: return failed provider imports`
+- `1053089` - `fix: close owned provider clients`
+- `345f367` - `feat: add import celery tasks`
+- `c4b0238` - `test: cover import enqueue order`
+- `c3b1f57` - `fix: order due provider imports portably`
 
 ## Next Required Step
 
-Review `docs/superpowers/plans/2026-06-22-task-import-workflows-plan.md`, then execute with subagent-driven development.
+Write release sync and notification fanout plan.
 
 ## Open Questions
 
@@ -105,34 +114,19 @@ None currently blocking. Future implementation may need a specific production ho
 
 Latest full verification:
 
-- `uv run coverage run -m pytest tests/test_settings_security.py tests/test_quality_config.py tests/test_upstream_base.py tests/test_musicbrainz_client.py tests/test_listenbrainz_client.py tests/test_lastfm_client.py -q`
-- `DEBUG=1 DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-domain.sqlite3 uv run coverage run --append -m pytest tests/test_domain_models.py tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q`
-- `uv run coverage report`
-- `uv run ruff check .`
-- `uv run bandit -c pyproject.toml -r config releasewatch`
-- `uv run python manage.py check`
-- `podman build -f Containerfile -t muspy:dev .`
-- `podman compose -f compose.yml config`
-- `podman compose -f compose.yml up -d db; podman compose -f compose.yml run --rm web python manage.py check; podman compose -f compose.yml down -v`
-- Latest full run passed:
-  - upstream/settings pytest group: 123 passed.
-  - domain/dev/smoke/container/CI pytest group: 46 passed.
-  - coverage: 96%, floor 96%.
-  - Ruff: passed.
-  - Bandit: no issues.
-  - Django check: no issues.
-  - Podman build: passed.
-  - Podman Compose config: passed.
-  - Podman Compose `web python manage.py check` with healthy Postgres 18: passed.
-- Focused checks before docs update:
-  - Last.fm re-review approved `c416a27`.
-  - `uv run pytest tests/test_lastfm_client.py -q`: 38 passed.
-  - `uv run ruff check releasewatch/upstreams/lastfm.py tests/test_lastfm_client.py`: passed.
-  - `uv run pytest tests/test_project_smoke.py -q -W always`: 3 passed, no warnings.
-  - `uv run pytest tests/test_container_files.py::test_compose_wires_database_health_env_and_web_port -q`: passed.
-  - `podman build -f Containerfile -t muspy:dev .`: passed.
-  - `podman compose -f compose.yml config`: passed.
-  - `podman compose -f compose.yml run --rm web python manage.py check`: passed after db was healthy.
+- `C:\Users\blind\.local\bin\uv.exe run coverage run -m pytest tests/test_settings_security.py tests/test_quality_config.py tests/test_task_config.py tests/test_upstream_base.py tests/test_musicbrainz_client.py tests/test_listenbrainz_client.py tests/test_lastfm_client.py -q`: 131 passed.
+- `DEBUG=1 DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-task-import.sqlite3 C:\Users\blind\.local\bin\uv.exe run coverage run --append -m pytest tests/test_provider_accounts.py tests/test_import_workflows.py -q`: 43 passed.
+- `DEBUG=1 DATABASE_URL=sqlite:///C:/Users/blind/gitrepos/muspy/.tmp-task-import.sqlite3 C:\Users\blind\.local\bin\uv.exe run coverage run --append -m pytest tests/test_domain_models.py tests/test_dev_admin_command.py tests/test_project_smoke.py tests/test_container_files.py tests/test_ci_workflow.py -q`: 49 passed.
+- `C:\Users\blind\.local\bin\uv.exe run coverage report`: 97%, floor 97%.
+- `C:\Users\blind\.local\bin\uv.exe run ruff check .`: passed.
+- `C:\Users\blind\.local\bin\uv.exe run bandit -c pyproject.toml -r config releasewatch`: no issues.
+- `C:\Users\blind\.local\bin\uv.exe run python manage.py check`: no issues.
+- `podman build -f Containerfile -t muspy:dev .`: passed.
+- `podman compose -f compose.yml config`: passed.
+- `podman compose -f compose.yml up -d db broker redis`: passed.
+- `podman compose -f compose.yml run --rm web python manage.py check`: no issues.
+- `podman compose -f compose.yml run --rm worker-imports celery -A config report`: passed, Celery 5.6.3 app loaded.
+- `podman compose -f compose.yml down -v`: passed.
 - `.env` exists locally from `.env.example`
 - Podman CLI 5.8.1 installed with Chocolatey.
 - Podman machine `podman-machine-default` exists and was started.

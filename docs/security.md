@@ -28,5 +28,14 @@ uv run coverage run -m pytest
 uv run coverage report
 ```
 
-Coverage is part of the security baseline. The configured floor is 96%, and it
+Coverage is part of the security baseline. The configured floor is 97%, and it
 should only move up.
+
+## Provider tokens
+
+Provider tokens are encrypted before storage. Set
+`PROVIDER_TOKEN_ENCRYPTION_KEY` before enabling recurring ListenBrainz imports.
+Do not use `SECRET_KEY` as the provider token key.
+
+Celery task arguments must contain database IDs only. Do not pass provider
+tokens, API keys, raw payloads, or signed URLs through the broker.

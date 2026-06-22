@@ -94,6 +94,10 @@ def test_provider_token_round_trips_without_plaintext_storage():
     assert decrypt_provider_token(encrypted) == "listenbrainz-token"
 
 
+def test_encrypt_provider_token_keeps_empty_token_empty():
+    assert encrypt_provider_token("") == ""
+
+
 @override_settings(PROVIDER_TOKEN_ENCRYPTION_KEY="")
 def test_encrypt_provider_token_requires_key():
     with pytest.raises(ImproperlyConfigured):
@@ -136,3 +140,7 @@ def test_redact_provider_secrets_handles_overlapping_values_longest_first():
 
     assert redacted == {"token": "[redacted]"}
     assert "123" not in str(redacted)
+
+
+def test_redact_provider_secrets_leaves_non_string_values_unchanged():
+    assert redact_provider_secrets(42, secret_values=["42"]) == 42

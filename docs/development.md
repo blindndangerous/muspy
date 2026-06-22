@@ -80,6 +80,23 @@ podman compose -f compose.yml down -v
 `postgres:18` expects its volume at `/var/lib/postgresql`. Do not move it back
 to `/var/lib/postgresql/data`.
 
+## Background workers
+
+This project uses Celery with RabbitMQ for task routing. Redis stores shared
+rate-limit state and short locks. PostgreSQL stores durable workflow state.
+
+Run the container stack:
+
+```sh
+podman compose -f compose.yml up db broker redis web worker-imports worker-sync worker-notifications worker-maintenance beat
+```
+
+Run an imports worker on bare metal:
+
+```sh
+uv run celery -A config worker -Q imports --loglevel=info
+```
+
 ## Tests and checks
 
 Run a targeted pytest file:
@@ -95,7 +112,7 @@ uv run coverage run -m pytest
 uv run coverage report
 ```
 
-Coverage must stay at or above 96%. Treat that number as a ratchet: raise it
+Coverage must stay at or above 97%. Treat that number as a ratchet: raise it
 when the suite earns it, but do not lower it.
 
 Run linting and security checks:
