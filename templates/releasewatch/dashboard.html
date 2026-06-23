@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+  <h1>Dashboard</h1>
+
+  <h2>Followed artists</h2>
+  {% if follows %}
+    <ul>
+      {% for follow in follows %}
+        <li>{{ follow.artist.name }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>You are not following any artists yet.</p>
+  {% endif %}
+
+  <h2>Latest releases from followed artists</h2>
+  {% include "releasewatch/includes/release_event_table.html" with events=events caption="Visible release events from followed artists" %}
+{% endblock %}

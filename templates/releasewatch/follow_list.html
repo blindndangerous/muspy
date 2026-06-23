@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Follows{% endblock %}
+
+{% block content %}
+  <h1>Follows</h1>
+  {% if follows %}
+    <table>
+      <caption>Your followed and ignored artists</caption>
+      <thead>
+        <tr>
+          <th scope="col">Artist</th>
+          <th scope="col">State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for follow in follows %}
+          <tr>
+            <td>{{ follow.artist.name }}</td>
+            <td>{% if follow.is_ignored %}Ignored{% else %}Following{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No follows found.</p>
+  {% endif %}
+{% endblock %}

@@ -160,6 +160,7 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+LOGIN_REDIRECT_URL = "releasewatch:dashboard"
 
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",

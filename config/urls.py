@@ -5,6 +5,7 @@ from releasewatch.views import health
 
 urlpatterns = [
     path("", include("releasewatch.urls")),
+    path("accounts/", include("django.contrib.auth.urls")),
     path("health/", health, name="health"),
     path("admin/", admin.site.urls),
 ]

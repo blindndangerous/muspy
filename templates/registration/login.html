@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Log in{% endblock %}
+
+{% block content %}
+  <h1>Log in</h1>
+
+  {% if form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="login-errors-title">
+      <h2 id="login-errors-title">Fix these errors</h2>
+      {{ form.errors }}
+    </section>
+  {% endif %}
+
+  <form method="post" action="{% url 'login' %}">
+    {% csrf_token %}
+    {% if next %}
+      <input type="hidden" name="next" value="{{ next }}">
+    {% endif %}
+    <div class="field">
+      {{ form.username.label_tag }}
+      {{ form.username }}
+    </div>
+    <div class="field">
+      {{ form.password.label_tag }}
+      {{ form.password }}
+    </div>
+    <button type="submit">Log in</button>
+  </form>
+{% endblock %}
