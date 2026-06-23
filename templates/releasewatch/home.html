@@ -1,5 +1,14 @@
 {% extends "base.html" %}
+{% load releasewatch_ui %}
+
 {% block title %}Release overview{% endblock %}
+
 {% block content %}
   <h1>Release overview</h1>
+
+  <h2>Upcoming releases</h2>
+  {% include "releasewatch/includes/release_event_table.html" with events=upcoming_events caption="Upcoming visible release events" %}
+
+  <h2>Recent releases</h2>
+  {% include "releasewatch/includes/release_event_table.html" with events=recent_events caption="Recent visible release events" %}
 {% endblock %}

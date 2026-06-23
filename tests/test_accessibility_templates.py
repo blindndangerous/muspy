@@ -1,5 +1,6 @@
 from datetime import date
 
+import pytest
 from django.contrib.staticfiles import finders
 from django.template import Context, Template
 
@@ -10,6 +11,7 @@ def render_template(source, context=None):
     return Template(source).render(Context(context or {}))
 
 
+@pytest.mark.django_db
 def test_base_template_has_skip_link_main_landmark_and_navigation(client):
     response = client.get("/")
 

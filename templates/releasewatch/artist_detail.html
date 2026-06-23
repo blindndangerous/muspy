@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ artist.name }}{% endblock %}
+
+{% block content %}
+  <h1>{{ artist.name }}</h1>
+  {% if artist.disambiguation %}
+    <p>{{ artist.disambiguation }}</p>
+  {% endif %}
+  {% include "releasewatch/includes/release_event_table.html" with events=events caption="Visible release events for this artist" %}
+{% endblock %}

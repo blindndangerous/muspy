@@ -1,0 +1,29 @@
+{% load releasewatch_ui %}
+
+{% if events %}
+  <table>
+    <caption>{{ caption }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Artist</th>
+        <th scope="col">Release</th>
+        <th scope="col">Date</th>
+        <th scope="col">Country</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+        <tr>
+          <td><a href="{% url 'releasewatch:artist_detail' event.release_group.artist_id %}">{{ event.release_group.artist.name }}</a></td>
+          <td><a href="{% url 'releasewatch:release_detail' event.id %}">{{ event.release_group }}</a></td>
+          <td>{{ event.event_date|release_date:event.date_precision }}</td>
+          <td>{{ event.country|default:"Unknown country" }}</td>
+          <td>{{ event.release.status|default:"Unknown status" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>No releases found.</p>
+{% endif %}
