@@ -5,13 +5,25 @@ from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from releasewatch.forms import ArtistSearchForm, FollowArtistForm, ImportCandidateReviewForm
+from releasewatch.forms import (
+    ArtistSearchForm,
+    FollowArtistForm,
+    ImportCandidateReviewForm,
+    NotificationPreferenceForm,
+)
 from releasewatch.imports import (
     accept_import_candidate,
     ignore_import_candidate,
     reject_import_candidate,
 )
-from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun, ReleaseEvent
+from releasewatch.models import (
+    Artist,
+    Follow,
+    ImportCandidate,
+    ImportRun,
+    NotificationPreference,
+    ReleaseEvent,
+)
 from releasewatch.rate_limits import (
     RateLimitUnavailable,
     check_rate_limit,
@@ -135,6 +147,27 @@ def import_detail(request, run_id: int):
         user=request.user,
     )
     return render(request, "releasewatch/import_detail.html", {"run": run})
+
+
+@login_required
+def notification_settings(request):
+    preference, _ = NotificationPreference.objects.get_or_create(user=request.user)
+    if request.method == "POST":
+        limited_response = _guard_rate_limit(
+            request,
+            scope="notification-settings",
+            rate=settings.RATE_LIMIT_NOTIFICATION_SETTINGS,
+        )
+        if limited_response is not None:
+            return limited_response
+        form = NotificationPreferenceForm(request.POST, instance=preference)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Notification settings saved.")
+            return redirect("releasewatch:notification_settings")
+    else:
+        form = NotificationPreferenceForm(instance=preference)
+    return render(request, "releasewatch/notification_settings.html", {"form": form})
 
 
 @login_required

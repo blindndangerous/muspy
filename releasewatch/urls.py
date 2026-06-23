@@ -9,6 +9,7 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("follows/", views.follow_list, name="follow_list"),
     path("imports/", views.import_list, name="import_list"),
+    path("settings/notifications/", views.notification_settings, name="notification_settings"),
     path(
         "imports/candidates/<int:candidate_id>/review/",
         views.review_import_candidate,

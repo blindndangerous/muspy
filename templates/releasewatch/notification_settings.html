@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Notification settings{% endblock %}
+
+{% block content %}
+  <h1>Notification settings</h1>
+
+  {% if form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="form-errors-title">
+      <h2 id="form-errors-title">Fix these errors</h2>
+      {{ form.errors }}
+    </section>
+  {% endif %}
+
+  <form method="post" action="{% url 'releasewatch:notification_settings' %}">
+    {% csrf_token %}
+    <fieldset>
+      <legend>Notification cadence</legend>
+      {{ form.cadence }}
+    </fieldset>
+
+    <div class="field">
+      {{ form.email_enabled }}
+      {{ form.email_enabled.label_tag }}
+    </div>
+
+    <div class="field">
+      {{ form.include_future_releases }}
+      {{ form.include_future_releases.label_tag }}
+    </div>
+
+    <button type="submit">Save notification settings</button>
+  </form>
+{% endblock %}

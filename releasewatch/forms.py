@@ -29,6 +29,7 @@ class ImportCandidateReviewForm(forms.Form):
 class NotificationPreferenceForm(forms.ModelForm):
     cadence = forms.ChoiceField(
         choices=NotificationCadence.choices,
+        error_messages={"invalid_choice": "Choose a valid choice."},
         widget=forms.RadioSelect,
     )
 
