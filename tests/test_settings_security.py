@@ -49,6 +49,24 @@ def test_running_tests_detects_coverage_running_pytest(monkeypatch):
     assert app_settings._running_tests() is True
 
 
+def test_running_tests_detects_python_m_pytest(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", ["python", "-m", "pytest"])
+
+    assert app_settings._running_tests() is True
+
+
+def test_running_tests_detects_pytest_executable_path(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", [r"C:\tools\pytest.exe"])
+
+    assert app_settings._running_tests() is True
+
+
+def test_running_tests_ignores_non_pytest_tokens_containing_pytest(monkeypatch):
+    monkeypatch.setattr(app_settings.sys, "argv", ["manage.py", "collectstatic", "--pytest-output"])
+
+    assert app_settings._running_tests() is False
+
+
 def test_running_tests_ignores_imported_pytest_module(monkeypatch):
     monkeypatch.setattr(app_settings.sys, "argv", ["manage.py", "check", "--deploy"])
 

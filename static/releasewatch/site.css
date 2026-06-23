@@ -1,0 +1,143 @@
+:root {
+  color-scheme: light;
+  --color-text: #1f2328;
+  --color-muted: #59636e;
+  --color-link: #0645ad;
+  --color-border: #8c959f;
+  --color-background: #ffffff;
+  --color-surface: #f6f8fa;
+  --color-focus: #0b57d0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
+a { color: var(--color-link); }
+
+a:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus { outline: none; }
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+  scroll-margin-top: 5rem;
+  scroll-margin-bottom: 2rem;
+}
+
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  transform: translateY(-200%);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-background);
+  background: var(--color-text);
+  z-index: 10;
+}
+
+.skip-link:focus { transform: translateY(0); }
+
+.site-header,
+.site-footer {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-footer {
+  border-top: 1px solid var(--color-border);
+  border-bottom: 0;
+}
+
+.site-name {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.nav-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 0;
+  margin: var(--space-3) 0 0;
+  list-style: none;
+}
+
+main {
+  max-width: 72rem;
+  padding: var(--space-4);
+}
+
+.messages,
+.error-summary {
+  margin: var(--space-4);
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.field { margin-block: var(--space-4); }
+
+label,
+legend {
+  display: block;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea,
+button,
+.button {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+}
+
+button,
+.button {
+  border: 1px solid var(--color-text);
+  color: var(--color-background);
+  background: var(--color-text);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+caption {
+  text-align: left;
+  font-weight: 700;
+  margin-block: var(--space-3);
+}
+
+th,
+td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.muted { color: var(--color-muted); }

@@ -54,7 +54,7 @@ def _env_required(
 
 
 def _running_tests() -> bool:
-    return any("pytest" in Path(arg).name for arg in sys.argv)
+    return any(Path(arg).name in {"pytest", "pytest.exe"} for arg in sys.argv)
 
 
 def _running_plain_system_check() -> bool:
@@ -144,12 +144,18 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+_STATICFILES_STORAGE_BACKEND = (
+    "django.contrib.staticfiles.storage.StaticFilesStorage"
+    if _running_tests()
+    else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+)
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": _STATICFILES_STORAGE_BACKEND,
     },
 }
 

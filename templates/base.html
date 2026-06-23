@@ -1,0 +1,36 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Muspy{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'releasewatch/site.css' %}">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-header">
+      <a class="site-name" href="{% url 'releasewatch:home' %}">Muspy</a>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="{% url 'releasewatch:home' %}">Home</a></li>
+          <li><a href="{% url 'releasewatch:release_list' %}">Releases</a></li>
+          {% block authenticated_nav %}{% endblock %}
+        </ul>
+      </nav>
+    </header>
+    {% if messages %}
+      <section class="messages" aria-label="Status messages" aria-live="polite">
+        {% for message in messages %}
+          <p>{{ message }}</p>
+        {% endfor %}
+      </section>
+    {% endif %}
+    <main id="main-content" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+      <p>Release data from MusicBrainz.</p>
+    </footer>
+  </body>
+</html>
