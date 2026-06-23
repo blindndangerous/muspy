@@ -5,8 +5,13 @@ from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from releasewatch.forms import ArtistSearchForm, FollowArtistForm
-from releasewatch.models import Artist, Follow, ReleaseEvent
+from releasewatch.forms import ArtistSearchForm, FollowArtistForm, ImportCandidateReviewForm
+from releasewatch.imports import (
+    accept_import_candidate,
+    ignore_import_candidate,
+    reject_import_candidate,
+)
+from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun, ReleaseEvent
 from releasewatch.rate_limits import (
     RateLimitUnavailable,
     check_rate_limit,
@@ -114,6 +119,59 @@ def follow_list(request):
         .order_by("is_ignored", "artist__sort_name", "artist__name")
     )
     return render(request, "releasewatch/follow_list.html", {"follows": follows})
+
+
+@login_required
+def import_list(request):
+    runs = ImportRun.objects.filter(user=request.user).order_by("-created_at", "-id")
+    return render(request, "releasewatch/import_list.html", {"runs": runs})
+
+
+@login_required
+def import_detail(request, run_id: int):
+    run = get_object_or_404(
+        ImportRun.objects.prefetch_related("candidates__artist"),
+        pk=run_id,
+        user=request.user,
+    )
+    return render(request, "releasewatch/import_detail.html", {"run": run})
+
+
+@login_required
+def review_import_candidate(request, candidate_id: int):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    limited_response = _guard_rate_limit(
+        request,
+        scope="import-review",
+        rate=settings.RATE_LIMIT_IMPORT_REVIEW,
+    )
+    if limited_response is not None:
+        return limited_response
+    candidate = get_object_or_404(
+        ImportCandidate.objects.select_related("import_run", "artist"),
+        pk=candidate_id,
+        import_run__user=request.user,
+    )
+    form = ImportCandidateReviewForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Choose a review action.")
+        return redirect("releasewatch:import_detail", run_id=candidate.import_run_id)
+    action = form.cleaned_data["action"]
+    if action == "accept":
+        if candidate.artist_id is None:
+            messages.error(request, "Choose ignore or reject for candidates without a match.")
+            return redirect("releasewatch:import_detail", run_id=candidate.import_run_id)
+        follow = accept_import_candidate(candidate=candidate, user=request.user)
+        sync_artist_releases_task.delay(follow.artist_id)
+        messages.success(request, f"Accepted {candidate.source_name}.")
+    elif action == "ignore":
+        ignore_import_candidate(candidate=candidate, user=request.user)
+        messages.success(request, f"Ignored {candidate.source_name}.")
+    else:
+        reject_import_candidate(candidate=candidate, user=request.user)
+        messages.success(request, f"Rejected {candidate.source_name}.")
+    return redirect("releasewatch:import_detail", run_id=candidate.import_run_id)
 
 
 @login_required

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Imports{% endblock %}
+
+{% block content %}
+  <h1>Imports</h1>
+  {% if runs %}
+    <table>
+      <caption>Your import runs</caption>
+      <thead>
+        <tr>
+          <th scope="col">Source</th>
+          <th scope="col">Status</th>
+          <th scope="col">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in runs %}
+          <tr>
+            <td><a href="{% url 'releasewatch:import_detail' run.id %}">{{ run.get_source_display }}</a></td>
+            <td>{{ run.get_status_display }}</td>
+            <td>{{ run.created_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No imports found.</p>
+  {% endif %}
+{% endblock %}
