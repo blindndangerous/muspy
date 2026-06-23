@@ -1,6 +1,14 @@
 from django.urls import reverse
 
 
+def test_wsgi_and_asgi_apps_import():
+    from config.asgi import application as asgi_application
+    from config.wsgi import application as wsgi_application
+
+    assert asgi_application is not None
+    assert wsgi_application is not None
+
+
 def test_health_endpoint_returns_ok(client):
     response = client.get(reverse("health"))
 

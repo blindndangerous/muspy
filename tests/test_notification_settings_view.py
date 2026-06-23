@@ -95,3 +95,19 @@ def test_notification_settings_rate_limit_returns_429(client, mocker):
     )
 
     assert response.status_code == 429
+
+
+def test_notification_settings_rate_limit_backend_failure_returns_503(client, mocker):
+    from releasewatch.rate_limits import RateLimitUnavailable
+
+    user = create_user("rate-limit-failure")
+    client.force_login(user)
+    mocker.patch("releasewatch.views.check_rate_limit", side_effect=RateLimitUnavailable("down"))
+
+    response = client.post(
+        reverse("releasewatch:notification_settings"),
+        {"cadence": NotificationCadence.DAILY},
+    )
+
+    assert response.status_code == 503
+    assert b"Service temporarily unavailable" in response.content

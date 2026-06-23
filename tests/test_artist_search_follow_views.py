@@ -55,6 +55,18 @@ def test_artist_search_requires_login(client):
     assert response.status_code == 302
 
 
+def test_artist_search_without_query_renders_empty_form(client, mocker):
+    user = create_user()
+    client.force_login(user)
+    search = mocker.patch("releasewatch.views.MusicBrainzClient.search_artists")
+
+    response = client.get(reverse("releasewatch:artist_search"))
+
+    assert response.status_code == 200
+    assert b"Search artists" in response.content
+    search.assert_not_called()
+
+
 def test_artist_search_uses_musicbrainz_client_and_shows_results(client, mocker):
     user = create_user()
     mbid = uuid4()
@@ -145,6 +157,19 @@ def test_follow_artist_upstream_error_returns_controlled_error(client, mocker):
     assert response.status_code == 503
     assert b"Artist follow is temporarily unavailable." in response.content
     assert b'role="alert"' in response.content
+
+
+def test_follow_artist_rate_limit_backend_failure_returns_503(client, mocker):
+    from releasewatch.rate_limits import RateLimitUnavailable
+
+    user = create_user("rate-limit-failure")
+    client.force_login(user)
+    mocker.patch("releasewatch.views.check_rate_limit", side_effect=RateLimitUnavailable("down"))
+
+    response = client.post(reverse("releasewatch:follow_artist"), {"mbid": str(uuid4())})
+
+    assert response.status_code == 503
+    assert b"Service temporarily unavailable" in response.content
 
 
 def test_follow_artist_requires_csrf_token():

@@ -108,6 +108,17 @@ def test_user_or_ip_identity_uses_ip_for_anonymous_user():
     assert identity_parts_for_request(request, "user_or_ip") == ("ip", "192.0.2.10")
 
 
+def test_user_identity_falls_back_to_anonymous_ip_for_anonymous_user():
+    from django.contrib.auth.models import AnonymousUser
+
+    from releasewatch.rate_limits import identity_parts_for_request
+
+    request = RequestFactory().get("/imports/", REMOTE_ADDR="192.0.2.20")
+    request.user = AnonymousUser()
+
+    assert identity_parts_for_request(request, "user") == ("anonymous", "192.0.2.20")
+
+
 def test_identity_parts_rejects_unexpected_identity_value():
     from releasewatch.rate_limits import Identity, identity_parts_for_request
 
@@ -140,4 +151,14 @@ def test_dummy_cache_backend_is_rejected_for_protected_limits():
     request = RequestFactory().get("/artists/search/", REMOTE_ADDR="192.0.2.10")
 
     with pytest.raises(RateLimitUnavailable):
+        check_rate_limit(request, scope="artist-search", limit=1, window_seconds=60, identity="ip")
+
+
+def test_missing_cache_counter_is_rejected(mocker):
+    from releasewatch.rate_limits import RateLimitUnavailable, check_rate_limit
+
+    request = RequestFactory().get("/artists/search/", REMOTE_ADDR="192.0.2.10")
+    mocker.patch("releasewatch.rate_limits.cache.incr", return_value=None)
+
+    with pytest.raises(RateLimitUnavailable, match="did not return a counter"):
         check_rate_limit(request, scope="artist-search", limit=1, window_seconds=60, identity="ip")

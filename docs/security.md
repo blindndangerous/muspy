@@ -43,3 +43,11 @@ tokens, API keys, raw payloads, or signed URLs through the broker.
 Release sync stores MusicBrainz payloads after normal payload redaction. Keep
 sync and notification fanout tasks ID-only: pass artist IDs and release event
 IDs, not payloads or user data.
+
+## Rate limits
+
+Rate limits use Django's cache backend. Production deployments must use a shared
+Redis cache through `REDIS_URL`; local memory caches are not sufficient across
+multiple web workers.
+
+Rate-limit keys must hash user-entered or sensitive values before storage.

@@ -93,6 +93,27 @@ def test_running_tests_detects_pytest_script(monkeypatch):
     assert app_settings._running_tests() is True
 
 
+def test_staticfiles_storage_uses_plain_storage_in_debug():
+    assert (
+        app_settings._staticfiles_storage_backend(debug=True, running_tests=False)
+        == "django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+
+
+def test_staticfiles_storage_uses_plain_storage_when_running_tests():
+    assert (
+        app_settings._staticfiles_storage_backend(debug=False, running_tests=True)
+        == "django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+
+
+def test_staticfiles_storage_uses_manifest_storage_in_production():
+    assert (
+        app_settings._staticfiles_storage_backend(debug=False, running_tests=False)
+        == "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    )
+
+
 def test_database_uses_postgresql_by_default():
     assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
 

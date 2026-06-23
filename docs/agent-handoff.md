@@ -1,10 +1,10 @@
 # Agent Handoff
 
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 
 ## Current Phase
 
-Release sync and notification fanout implementation complete. Task infrastructure, import workflow, upstream clients, and domain models complete.
+Accessible server-rendered UI and Redis-backed rate limits complete. Task infrastructure, import workflow, upstream clients, release sync, notification fanout, and domain models complete.
 
 ## Repository
 
@@ -20,7 +20,7 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 
 1. `docs/agent-handoff.md`
 2. `docs/superpowers/specs/2026-06-21-muspy-modernization-design.md`
-3. `docs/superpowers/plans/2026-06-22-release-sync-notification-fanout-plan.md`
+3. `docs/superpowers/plans/2026-06-22-accessible-ui-rate-limits-plan.md`
 4. `git status`
 
 ## Approved Decisions
@@ -108,10 +108,18 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 - `4fc8e85` - `feat: add release sync service`
 - `83eeff5` - `feat: add notification fanout service`
 - `24fbc51` - `feat: add release sync celery tasks`
+- `6daac84` - `feat: add cache backed rate limits`
+- `ec48fef` - `feat: add accessible ui shell`
+- `c8c5a5d` - `feat: add public release pages`
+- `e489d02` - `feat: add dashboard and follows pages`
+- `8e3e997` - `feat: add artist search follow workflow`
+- `6ee6f16` - `feat: add import review ui`
+- `3766735` - `feat: add notification settings ui`
+- `b088a25` - `test: complete accessible ui checkpoint`
 
 ## Next Required Step
 
-Plan the accessible server-rendered UI for artist search/follows, import review, release lists, and notification preferences.
+Plan RSS/iCal feed token UI or email delivery, depending on user choice.
 
 ## Open Questions
 
@@ -119,7 +127,24 @@ None currently blocking. Future implementation may need a specific production ho
 
 ## Verification Notes
 
-Latest full verification:
+Latest accessible UI verification:
+
+- `C:\Users\blind\.local\bin\uv.exe run pytest tests/test_rate_limits.py tests/test_accessibility_templates.py tests/test_public_release_views.py tests/test_dashboard_follow_views.py tests/test_artist_search_follow_views.py tests/test_import_review_views.py tests/test_notification_settings_view.py -q`: 59 passed.
+- Coverage split part 1: settings, quality config, task config, upstream base, MusicBrainz, ListenBrainz, Last.fm, rate limits: 156 passed.
+- Coverage split part 2: provider accounts, import workflows, release sync, notifications, release sync tasks, accessibility templates, public release views, dashboard/follows, artist search/follow, import review, notification settings: 115 passed.
+- Coverage split part 3: domain models, dev admin command, smoke, container files, CI workflow: 50 passed.
+- `C:\Users\blind\.local\bin\uv.exe run coverage report`: 98%, floor ratcheted to 98.
+- `C:\Users\blind\.local\bin\uv.exe run pytest tests/test_quality_config.py -q`: 5 passed.
+- `C:\Users\blind\.local\bin\uv.exe run ruff check .`: passed.
+- `C:\Users\blind\.local\bin\uv.exe run bandit -c pyproject.toml -r config releasewatch`: no issues.
+- `C:\Users\blind\.local\bin\uv.exe run python manage.py check`: no issues.
+- `C:\Users\blind\.local\bin\uv.exe lock --check`: passed.
+- `podman compose -f compose.yml config`: passed.
+- `podman compose -f compose.yml up -d db broker redis`: passed.
+- `podman compose -f compose.yml run --rm web python manage.py check`: no issues.
+- `podman compose -f compose.yml down -v`: passed.
+
+Previous full verification:
 
 - `C:\Users\blind\.local\bin\uv.exe run pytest tests/test_musicbrainz_client.py tests/test_release_sync.py tests/test_notifications.py tests/test_release_sync_tasks.py tests/test_task_config.py -q`: 43 passed.
 - `C:\Users\blind\.local\bin\uv.exe run ruff check releasewatch/upstreams/musicbrainz.py releasewatch/sync.py releasewatch/notifications.py releasewatch/tasks.py tests/test_musicbrainz_client.py tests/test_release_sync.py tests/test_notifications.py tests/test_release_sync_tasks.py tests/test_task_config.py`: passed.

@@ -117,6 +117,12 @@ Run a targeted pytest file:
 uv run pytest tests/test_settings_security.py -q
 ```
 
+Run UI-focused tests:
+
+```sh
+uv run pytest tests/test_rate_limits.py tests/test_accessibility_templates.py tests/test_public_release_views.py tests/test_dashboard_follow_views.py tests/test_artist_search_follow_views.py tests/test_import_review_views.py tests/test_notification_settings_view.py -q
+```
+
 Run the full test suite with coverage:
 
 ```sh

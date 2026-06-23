@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache, caches
+from django.test import Client
 from django.urls import reverse
 
 from releasewatch.models import Artist, Follow, ImportCandidate, ImportRun
@@ -80,6 +81,18 @@ def test_import_detail_blocks_cross_user_access(client):
     assert response.status_code == 404
 
 
+def test_import_detail_shows_current_user_run(client):
+    user = create_user()
+    run = create_run(user)
+    create_candidate(run)
+    client.force_login(user)
+
+    response = client.get(reverse("releasewatch:import_detail", args=[run.id]))
+
+    assert response.status_code == 200
+    assert b"Unknown Artist" in response.content
+
+
 def test_accept_import_candidate_creates_follow_and_marks_candidate(client, mocker):
     user = create_user()
     artist = Artist.objects.create(mbid=uuid4(), name="Fugazi")
@@ -119,6 +132,22 @@ def test_accept_unmatched_import_candidate_redirects_without_crashing(client, mo
     delay.assert_not_called()
 
 
+def test_invalid_import_review_action_redirects_without_changing_candidate(client):
+    user = create_user()
+    run = create_run(user)
+    candidate = create_candidate(run)
+    client.force_login(user)
+
+    response = client.post(
+        reverse("releasewatch:review_import_candidate", args=[candidate.id]),
+        {"action": "bad"},
+    )
+
+    assert response.status_code == 302
+    candidate.refresh_from_db()
+    assert candidate.review_state == ImportCandidate.ReviewState.PENDING
+
+
 def test_ignore_import_candidate_marks_follow_ignored(client):
     user = create_user()
     artist = Artist.objects.create(mbid=uuid4(), name="Unwanted")
@@ -137,6 +166,22 @@ def test_ignore_import_candidate_marks_follow_ignored(client):
     assert Follow.objects.filter(user=user, artist=artist, is_ignored=True).exists()
 
 
+def test_reject_import_candidate_marks_candidate_rejected(client):
+    user = create_user()
+    run = create_run(user)
+    candidate = create_candidate(run)
+    client.force_login(user)
+
+    response = client.post(
+        reverse("releasewatch:review_import_candidate", args=[candidate.id]),
+        {"action": "reject"},
+    )
+
+    assert response.status_code == 302
+    candidate.refresh_from_db()
+    assert candidate.review_state == ImportCandidate.ReviewState.REJECTED
+
+
 def test_review_import_candidate_requires_post(client):
     user = create_user()
     run = create_run(user)
@@ -146,3 +191,36 @@ def test_review_import_candidate_requires_post(client):
     response = client.get(reverse("releasewatch:review_import_candidate", args=[candidate.id]))
 
     assert response.status_code == 405
+
+
+def test_review_import_candidate_rate_limit_returns_429(client, mocker):
+    user = create_user()
+    run = create_run(user)
+    candidate = create_candidate(run)
+    client.force_login(user)
+    mocker.patch(
+        "releasewatch.views.check_rate_limit",
+        return_value=mocker.Mock(allowed=False, retry_after_seconds=30),
+    )
+
+    response = client.post(
+        reverse("releasewatch:review_import_candidate", args=[candidate.id]),
+        {"action": "reject"},
+    )
+
+    assert response.status_code == 429
+
+
+def test_import_review_requires_csrf_token():
+    user = create_user("csrf-user")
+    run = create_run(user)
+    candidate = create_candidate(run)
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.post(
+        reverse("releasewatch:review_import_candidate", args=[candidate.id]),
+        {"action": "reject"},
+    )
+
+    assert response.status_code == 403

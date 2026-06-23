@@ -79,6 +79,16 @@ def _get_secret_key(
     raise ImproperlyConfigured("SECRET_KEY environment variable must be set when DEBUG is false.")
 
 
+def _staticfiles_storage_backend(debug: bool, running_tests: bool | None = None) -> str:
+    if running_tests is None:
+        running_tests = _running_tests()
+
+    if debug or running_tests:
+        return "django.contrib.staticfiles.storage.StaticFilesStorage"
+
+    return "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+
 DEBUG = _env_bool("DEBUG")
 SECRET_KEY = _get_secret_key(DEBUG, running_plain_system_check=_running_plain_system_check())
 
@@ -145,11 +155,7 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-_STATICFILES_STORAGE_BACKEND = (
-    "django.contrib.staticfiles.storage.StaticFilesStorage"
-    if _running_tests()
-    else "whitenoise.storage.CompressedManifestStaticFilesStorage"
-)
+_STATICFILES_STORAGE_BACKEND = _staticfiles_storage_backend(DEBUG)
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
