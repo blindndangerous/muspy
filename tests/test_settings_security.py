@@ -112,3 +112,16 @@ def test_celery_broker_url_requires_env_outside_debug_or_tests(monkeypatch):
             debug=False,
             running_tests=False,
         )
+
+
+def test_redis_cache_is_configured_from_redis_url(settings):
+    assert settings.CACHES["default"]["BACKEND"] == "django.core.cache.backends.redis.RedisCache"
+    assert settings.CACHES["default"]["LOCATION"] == settings.REDIS_URL
+
+
+def test_rate_limit_settings_are_bounded(settings):
+    assert settings.RATE_LIMIT_ARTIST_SEARCH_AUTHENTICATED == (60, 60)
+    assert settings.RATE_LIMIT_FOLLOW_MUTATION == (60, 60)
+    assert settings.RATE_LIMIT_IMPORT_CREATE == (10, 3600)
+    assert settings.RATE_LIMIT_IMPORT_REVIEW == (120, 60)
+    assert settings.RATE_LIMIT_NOTIFICATION_SETTINGS == (30, 60)

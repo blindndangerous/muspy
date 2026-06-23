@@ -206,6 +206,33 @@ RELEASE_SYNC_FRESHNESS_HOURS = _env_int(
 )
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+    }
+}
+
+RATE_LIMIT_ARTIST_SEARCH_AUTHENTICATED = (
+    _env_int("RATE_LIMIT_ARTIST_SEARCH_AUTHENTICATED_COUNT", default=60, minimum=1, maximum=600),
+    _env_int("RATE_LIMIT_ARTIST_SEARCH_AUTHENTICATED_WINDOW", default=60, minimum=1, maximum=3600),
+)
+RATE_LIMIT_FOLLOW_MUTATION = (
+    _env_int("RATE_LIMIT_FOLLOW_MUTATION_COUNT", default=60, minimum=1, maximum=600),
+    _env_int("RATE_LIMIT_FOLLOW_MUTATION_WINDOW", default=60, minimum=1, maximum=3600),
+)
+RATE_LIMIT_IMPORT_CREATE = (
+    _env_int("RATE_LIMIT_IMPORT_CREATE_COUNT", default=10, minimum=1, maximum=200),
+    _env_int("RATE_LIMIT_IMPORT_CREATE_WINDOW", default=3600, minimum=60, maximum=86400),
+)
+RATE_LIMIT_IMPORT_REVIEW = (
+    _env_int("RATE_LIMIT_IMPORT_REVIEW_COUNT", default=120, minimum=1, maximum=1000),
+    _env_int("RATE_LIMIT_IMPORT_REVIEW_WINDOW", default=60, minimum=1, maximum=3600),
+)
+RATE_LIMIT_NOTIFICATION_SETTINGS = (
+    _env_int("RATE_LIMIT_NOTIFICATION_SETTINGS_COUNT", default=30, minimum=1, maximum=300),
+    _env_int("RATE_LIMIT_NOTIFICATION_SETTINGS_WINDOW", default=60, minimum=1, maximum=3600),
+)
 PROVIDER_TOKEN_ENCRYPTION_KEY = os.environ.get("PROVIDER_TOKEN_ENCRYPTION_KEY", "")
 
 SESSION_COOKIE_SECURE = not DEBUG
