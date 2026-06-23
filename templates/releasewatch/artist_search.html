@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Search artists{% endblock %}
+
+{% block content %}
+  <h1>Search artists</h1>
+  {% if form.errors or follow_form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="artist-search-errors-title">
+      <h2 id="artist-search-errors-title">Fix these errors</h2>
+      {{ form.non_field_errors }}
+      {{ form.q.errors }}
+      {% if follow_form %}
+        {{ follow_form.non_field_errors }}
+        {{ follow_form.mbid.errors }}
+      {% endif %}
+    </section>
+  {% endif %}
+  <form method="get" action="{% url 'releasewatch:artist_search' %}">
+    <div class="field">
+      {{ form.q.label_tag }}
+      {% if form.q.errors %}
+        <input type="text" name="{{ form.q.html_name }}" value="{{ form.q.value|default_if_none:'' }}" maxlength="255" required id="{{ form.q.id_for_label }}" aria-invalid="true" aria-describedby="id_q_error">
+        <div id="id_q_error">{{ form.q.errors }}</div>
+      {% else %}
+        {{ form.q }}
+      {% endif %}
+    </div>
+    <button type="submit">Search artists</button>
+  </form>
+
+  {% if results %}
+    <h2>Search results</h2>
+    <ul>
+      {% for artist in results %}
+        <li>
+          <p>
+            <strong>{{ artist.name }}</strong>
+            {% if artist.disambiguation %}{{ artist.disambiguation }}{% endif %}
+            {% if artist.country %}{{ artist.country }}{% endif %}
+            {% if artist.artist_type %}{{ artist.artist_type }}{% endif %}
+          </p>
+          <form method="post" action="{% url 'releasewatch:follow_artist' %}">
+            {% csrf_token %}
+            <input type="hidden" name="mbid" value="{{ artist.mbid }}">
+            <button type="submit">Follow {{ artist.name }}</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endblock %}

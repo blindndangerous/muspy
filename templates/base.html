@@ -18,6 +18,7 @@
           {% block authenticated_nav %}
             {% if request.user.is_authenticated %}
               <li><a href="{% url 'releasewatch:dashboard' %}">Dashboard</a></li>
+              <li><a href="{% url 'releasewatch:artist_search' %}">Search Artists</a></li>
               <li><a href="{% url 'releasewatch:follow_list' %}">Follows</a></li>
             {% endif %}
           {% endblock %}
