@@ -23,6 +23,8 @@
               <li><a href="{% url 'releasewatch:import_list' %}">Imports</a></li>
               <li><a href="{% url 'releasewatch:feed_settings' %}">Feed settings</a></li>
               <li><a href="{% url 'releasewatch:notification_settings' %}">Notification Settings</a></li>
+            {% else %}
+              <li><a href="{% url 'login' %}">Log in</a></li>
             {% endif %}
           {% endblock %}
         </ul>
@@ -39,7 +41,7 @@
       {% block content %}{% endblock %}
     </main>
     <footer class="site-footer">
-      <p>Release data from MusicBrainz.</p>
+      <p>Release data from <a href="https://musicbrainz.org/">MusicBrainz</a>.</p>
     </footer>
   </body>
 </html>

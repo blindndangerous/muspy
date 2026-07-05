@@ -114,6 +114,7 @@ def test_login_route_renders_accessible_form(client):
     assert b"name=\"username\"" in response.content
     assert b"name=\"password\"" in response.content
     assert b'name="next" value="/dashboard/"' in response.content
+    assert b"Open the invite link you were given." in response.content
 
 
 def test_follow_list_requires_login(client):

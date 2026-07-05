@@ -14,6 +14,11 @@ releases, dashboard/follows, artist search and follow, import review,
 notification preferences, tokenized RSS/iCal feed URLs, release sync,
 notification fanout, and email delivery through Django's email backend.
 
+Accounts are invite-only. An administrator creates an invite code in Django
+admin or with the Django shell, then sends the invite URL to the new user. The
+user opens `/accounts/signup/<invite-code>/`, creates an account, and is logged
+in.
+
 Local development does not require an email server. By default, Django uses the
 console email backend and prints generated email to the worker process output.
 Production can use any SMTP service by setting Django email environment
@@ -29,6 +34,17 @@ Useful project docs:
 - Development setup: `docs/development.md`
 - Deployment notes: `docs/deployment.md`
 - Security notes: `docs/security.md`
+
+## Commit attribution
+
+Use GitHub noreply addresses for commits that should not expose personal email
+addresses. Commits made with Codex assistance must include both coauthor
+trailers:
+
+```text
+Co-authored-by: blindndangerous <20344049+blindndangerous@users.noreply.github.com>
+Co-authored-by: Codex <codex@openai.com>
+```
 
 ## Quick start
 

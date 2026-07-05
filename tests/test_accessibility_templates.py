@@ -20,6 +20,8 @@ def test_base_template_has_skip_link_main_landmark_and_navigation(client):
     assert 'href="#main-content"' in html
     assert '<main id="main-content"' in html
     assert 'aria-label="Primary"' in html
+    assert 'href="/accounts/login/"' in html
+    assert 'href="https://musicbrainz.org/"' in html
 
 
 def test_focus_visible_css_rule_exists():

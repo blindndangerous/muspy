@@ -1,4 +1,6 @@
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import UserCreationForm
 
 from releasewatch.models import FeedToken, NotificationCadence, NotificationPreference
 
@@ -41,3 +43,25 @@ class NotificationPreferenceForm(forms.ModelForm):
 class FeedTokenForm(forms.Form):
     feed_type = forms.ChoiceField(choices=FeedToken.FeedType.choices)
     name = forms.CharField(max_length=100, required=False, strip=True)
+
+
+class InviteSignupForm(UserCreationForm):
+    email = forms.EmailField(label="Email address")
+
+    class Meta(UserCreationForm.Meta):
+        model = get_user_model()
+        fields = ("username", "email")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].widget.attrs["autocomplete"] = "username"
+        self.fields["email"].widget.attrs["autocomplete"] = "email"
+        self.fields["password1"].widget.attrs["autocomplete"] = "new-password"
+        self.fields["password2"].widget.attrs["autocomplete"] = "new-password"
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        if commit:
+            user.save()
+        return user

@@ -154,19 +154,28 @@ podman compose -f compose.yml run --rm web python manage.py migrate
 podman compose -f compose.yml run --rm web python manage.py ensure_dev_admin
 ```
 
-3. Open `http://localhost:8000/accounts/login/` and log in with the admin
+3. Create a local invite code if you want to test new account creation:
+
+```sh
+podman compose -f compose.yml run --rm web python manage.py shell -c "from releasewatch.models import Invite; Invite.objects.update_or_create(code='local-test', defaults={'max_uses': 5})"
+```
+
+Open `http://localhost:8000/accounts/signup/local-test/` to create a test
+account from that invite.
+
+4. Open `http://localhost:8000/accounts/login/` and log in with the admin
 credentials from `.env`.
 
-4. Use Search Artists to find a real MusicBrainz artist, then follow that
+5. Use Search Artists to find a real MusicBrainz artist, then follow that
 artist. The follow action enqueues release sync.
 
-5. Watch the `worker-sync` logs. When sync finishes, release pages and the
+6. Watch the `worker-sync` logs. When sync finishes, release pages and the
 dashboard should show the artist's releases.
 
-6. Open Feed settings, create an RSS or iCal token, copy the URL, and open it in
+7. Open Feed settings, create an RSS or iCal token, copy the URL, and open it in
 your browser or feed reader.
 
-7. Set notification cadence to Instant, Daily digest, or Weekly digest. New
+8. Set notification cadence to Instant, Daily digest, or Weekly digest. New
 synced release events create pending notifications. To force delivery in a local
 shell, run:
 
@@ -174,7 +183,7 @@ shell, run:
 podman compose -f compose.yml run --rm web python manage.py shell -c "from releasewatch.tasks import send_pending_notification_emails_task; send_pending_notification_emails_task()"
 ```
 
-8. With the console email backend, generated email appears in the command output
+9. With the console email backend, generated email appears in the command output
 or notification worker logs.
 
 ## Tests and checks

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Create account{% endblock %}
+
+{% block content %}
+  <h1>Create account</h1>
+
+  {% if form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="signup-errors-title">
+      <h2 id="signup-errors-title">Fix these errors</h2>
+      {{ form.errors }}
+    </section>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      {{ form.username.label_tag }}
+      {{ form.username }}
+      {% if form.username.help_text %}
+        <p id="{{ form.username.auto_id }}_helptext">{{ form.username.help_text }}</p>
+      {% endif %}
+    </div>
+    <div class="field">
+      {{ form.email.label_tag }}
+      {{ form.email }}
+    </div>
+    <div class="field">
+      {{ form.password1.label_tag }}
+      {{ form.password1 }}
+      {% if form.password1.help_text %}
+        <p id="{{ form.password1.auto_id }}_helptext">{{ form.password1.help_text }}</p>
+      {% endif %}
+    </div>
+    <div class="field">
+      {{ form.password2.label_tag }}
+      {{ form.password2 }}
+      {% if form.password2.help_text %}
+        <p id="{{ form.password2.auto_id }}_helptext">{{ form.password2.help_text }}</p>
+      {% endif %}
+    </div>
+    <button type="submit">Create account</button>
+  </form>
+{% endblock %}

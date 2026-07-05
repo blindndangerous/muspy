@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
+from django.db import transaction
+from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -18,6 +20,7 @@ from releasewatch.forms import (
     FeedTokenForm,
     FollowArtistForm,
     ImportCandidateReviewForm,
+    InviteSignupForm,
     NotificationPreferenceForm,
 )
 from releasewatch.imports import (
@@ -31,6 +34,7 @@ from releasewatch.models import (
     Follow,
     ImportCandidate,
     ImportRun,
+    Invite,
     NotificationPreference,
     ReleaseEvent,
 )
@@ -112,6 +116,30 @@ def release_list(request):
         "releasewatch/release_list.html",
         {"events": visible_release_events()[:100]},
     )
+
+
+def signup_with_invite(request, code: str):
+    invite = get_object_or_404(Invite, code=code)
+    if not invite.can_be_used:
+        raise Http404("Invite not available.")
+
+    if request.method == "POST":
+        form = InviteSignupForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                locked_invite = get_object_or_404(Invite.objects.select_for_update(), code=code)
+                if not locked_invite.can_be_used:
+                    raise Http404("Invite not available.")
+                user = form.save()
+                locked_invite.uses += 1
+                locked_invite.save(update_fields=["uses"])
+            login(request, user)
+            messages.success(request, "Account created.")
+            return redirect("releasewatch:dashboard")
+    else:
+        form = InviteSignupForm()
+
+    return render(request, "registration/signup.html", {"form": form, "invite": invite})
 
 
 @login_required

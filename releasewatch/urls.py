@@ -6,6 +6,7 @@ app_name = "releasewatch"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("accounts/signup/<str:code>/", views.signup_with_invite, name="signup_with_invite"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("follows/", views.follow_list, name="follow_list"),
     path("imports/", views.import_list, name="import_list"),
