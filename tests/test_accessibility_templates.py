@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.contrib.staticfiles import finders
 from django.template import Context, Template
 
@@ -22,6 +23,23 @@ def test_base_template_has_skip_link_main_landmark_and_navigation(client):
     assert 'aria-label="Primary"' in html
     assert 'href="/accounts/login/"' in html
     assert 'href="https://musicbrainz.org/"' in html
+
+
+@pytest.mark.django_db
+def test_base_template_has_authenticated_logout_form(client):
+    user = get_user_model().objects.create_user(
+        username="listener",
+        password="test-password",  # noqa: S106
+    )
+    client.force_login(user)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert 'action="/accounts/logout/"' in html
+    assert 'method="post"' in html
+    assert ">Log out</button>" in html
 
 
 def test_focus_visible_css_rule_exists():
