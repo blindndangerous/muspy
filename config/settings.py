@@ -54,7 +54,16 @@ def _env_required(
 
 
 def _running_tests() -> bool:
-    return any(Path(arg).name in {"pytest", "pytest.exe"} for arg in sys.argv)
+    for arg in sys.argv:
+        normalized = arg.replace("\\", "/")
+        name = normalized.rsplit("/", 1)[-1]
+        if name in {"pytest", "pytest.exe"}:
+            return True
+        if name == "__main__.py" and any(
+            part.lower() == "pytest" for part in normalized.split("/")
+        ):
+            return True
+    return False
 
 
 def _running_plain_system_check() -> bool:
@@ -87,6 +96,13 @@ def _staticfiles_storage_backend(debug: bool, running_tests: bool | None = None)
         return "django.contrib.staticfiles.storage.StaticFilesStorage"
 
     return "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+
+def _database_config() -> dict:
+    return dj_database_url.config(
+        default="postgresql://muspy:muspy@localhost:5432/muspy",
+        conn_max_age=60,
+    )
 
 
 DEBUG = _env_bool("DEBUG")
@@ -140,12 +156,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-DATABASES = {
-    "default": dj_database_url.config(
-        default="postgresql://muspy:muspy@localhost:5432/muspy",
-        conn_max_age=60,
-    )
-}
+DATABASES = {"default": _database_config()}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -173,6 +184,13 @@ EMAIL_BACKEND = os.environ.get(
     "django.core.mail.backends.console.EmailBackend",
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "muspy@example.test")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = _env_int("EMAIL_PORT", default=25, minimum=1, maximum=65535)
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS")
+EMAIL_USE_SSL = _env_bool("EMAIL_USE_SSL")
+EMAIL_TIMEOUT = _env_int("EMAIL_TIMEOUT", default=10, minimum=1, maximum=120)
 
 UPSTREAM_HTTP_TIMEOUT_SECONDS = _env_int(
     "UPSTREAM_HTTP_TIMEOUT_SECONDS",
@@ -207,6 +225,7 @@ CELERY_TASK_ROUTES = {
     "releasewatch.tasks.enqueue_due_provider_imports": {"queue": "maintenance"},
     "releasewatch.tasks.sync_artist_releases_task": {"queue": "sync"},
     "releasewatch.tasks.fanout_release_notifications": {"queue": "notifications"},
+    "releasewatch.tasks.send_pending_notification_emails_task": {"queue": "notifications"},
     "releasewatch.tasks.enqueue_due_artist_syncs": {"queue": "maintenance"},
 }
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"

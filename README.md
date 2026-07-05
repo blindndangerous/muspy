@@ -1,16 +1,25 @@
 # muspy
 
 Muspy is an album release notification service. This repository is a modern
-fork of the original project, with the new Django implementation in progress.
+fork of the original project, rebuilt on Django 6.
 
 The legacy Python 2 and Django 1.3 application remains under `legacy/` for
 provenance and reference. New work should happen outside `legacy/`.
 
 ## Current status
 
-Modernization is in progress. The repository currently contains project
-scaffolding, container files, security settings, CI checks, and planning docs.
-The user-facing application is still being rebuilt.
+The modern invite-only application is usable for local development and small
+trusted deployments. It has accessible server-rendered pages for public
+releases, dashboard/follows, artist search and follow, import review,
+notification preferences, tokenized RSS/iCal feed URLs, release sync,
+notification fanout, and email delivery through Django's email backend.
+
+Local development does not require an email server. By default, Django uses the
+console email backend and prints generated email to the worker process output.
+Production can use any SMTP service by setting Django email environment
+variables such as `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`,
+`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, and
+`DEFAULT_FROM_EMAIL`.
 
 Useful project docs:
 
@@ -36,4 +45,5 @@ uv run pytest
 ```
 
 For a full local setup, including PostgreSQL, migrations, and the development
-admin account, see `docs/development.md`.
+admin account, see `docs/development.md`. For testing with live MusicBrainz
+data, see `docs/development.md#testing-with-real-data`.

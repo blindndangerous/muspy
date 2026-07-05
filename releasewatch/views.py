@@ -1,12 +1,21 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseNotAllowed, JsonResponse
+from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
+from releasewatch.feeds import (
+    create_feed_token_record,
+    feed_token_for_request,
+    render_ical_feed,
+    render_rss_feed,
+    user_release_events,
+)
 from releasewatch.forms import (
     ArtistSearchForm,
+    FeedTokenForm,
     FollowArtistForm,
     ImportCandidateReviewForm,
     NotificationPreferenceForm,
@@ -18,6 +27,7 @@ from releasewatch.imports import (
 )
 from releasewatch.models import (
     Artist,
+    FeedToken,
     Follow,
     ImportCandidate,
     ImportRun,
@@ -168,6 +178,63 @@ def notification_settings(request):
     else:
         form = NotificationPreferenceForm(instance=preference)
     return render(request, "releasewatch/notification_settings.html", {"form": form})
+
+
+@login_required
+def feed_settings(request):
+    new_feed_url = ""
+    if request.method == "POST":
+        form = FeedTokenForm(request.POST)
+        if form.is_valid():
+            created = create_feed_token_record(
+                user=request.user,
+                feed_type=form.cleaned_data["feed_type"],
+                name=form.cleaned_data["name"],
+            )
+            route_name = (
+                "releasewatch:rss_feed"
+                if created.record.feed_type == FeedToken.FeedType.RSS
+                else "releasewatch:ical_feed"
+            )
+            new_feed_url = request.build_absolute_uri(reverse(route_name, args=[created.token]))
+            messages.success(request, "Feed token created. Copy the new URL now.")
+            form = FeedTokenForm()
+    else:
+        form = FeedTokenForm()
+    tokens = FeedToken.objects.filter(user=request.user).order_by("revoked_at", "-created_at")
+    return render(
+        request,
+        "releasewatch/feed_settings.html",
+        {"form": form, "tokens": tokens, "new_feed_url": new_feed_url},
+    )
+
+
+@login_required
+def revoke_feed_token(request, token_id: int):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    token = get_object_or_404(FeedToken, pk=token_id, user=request.user)
+    if token.revoked_at is None:
+        token.revoked_at = timezone.now()
+        token.save(update_fields=["revoked_at"])
+        messages.success(request, "Feed token revoked.")
+    return redirect("releasewatch:feed_settings")
+
+
+def rss_feed(request, token: str):
+    token_record = feed_token_for_request(token=token, feed_type=FeedToken.FeedType.RSS)
+    content = render_rss_feed(
+        request=request,
+        token_record=token_record,
+        events=user_release_events(token_record.user)[:100],
+    )
+    return HttpResponse(content, content_type="application/rss+xml; charset=utf-8")
+
+
+def ical_feed(request, token: str):
+    token_record = feed_token_for_request(token=token, feed_type=FeedToken.FeedType.ICAL)
+    content = render_ical_feed(request=request, events=user_release_events(token_record.user)[:500])
+    return HttpResponse(content, content_type="text/calendar; charset=utf-8")
 
 
 @login_required

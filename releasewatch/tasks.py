@@ -11,6 +11,7 @@ from releasewatch.imports import (
     start_plain_text_import,
 )
 from releasewatch.models import Artist, ImportRun, ProviderAccount, ReleaseEvent, SyncState
+from releasewatch.notification_delivery import send_pending_notification_emails
 from releasewatch.notifications import fanout_release_event_notifications
 from releasewatch.provider_tokens import ProviderTokenError, decrypt_provider_token
 from releasewatch.sync import ReleaseSyncError, sync_artist_releases
@@ -86,6 +87,11 @@ def sync_artist_releases_task(self, artist_id: int) -> None:
 def fanout_release_notifications(self, release_event_id: int) -> None:
     event = ReleaseEvent.objects.select_related("release_group__artist").get(pk=release_event_id)
     fanout_release_event_notifications(release_event=event)
+
+
+@shared_task(bind=True, autoretry_for=(TimeoutError,), retry_backoff=True, retry_jitter=True)
+def send_pending_notification_emails_task(self, batch_size: int = 100) -> None:
+    send_pending_notification_emails(batch_size=batch_size)
 
 
 @shared_task

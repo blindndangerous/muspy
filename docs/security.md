@@ -8,8 +8,7 @@ Security baseline for the modern Muspy fork.
   database passwords, email credentials, API keys, or admin passwords.
 - Run production with `DEBUG=0`.
 - Keep CSRF protection on for mutating forms and requests.
-- Future RSS and iCal feed URLs that expose private user data should use
-  tokenized, revocable URLs.
+- RSS and iCal feed URLs use tokenized, revocable URLs. Store only token hashes.
 - Enforce owner checks before reading or changing user-owned artists,
   subscriptions, feeds, notification settings, or account data.
 - Verify email addresses before sending release notifications.
@@ -43,6 +42,14 @@ tokens, API keys, raw payloads, or signed URLs through the broker.
 Release sync stores MusicBrainz payloads after normal payload redaction. Keep
 sync and notification fanout tasks ID-only: pass artist IDs and release event
 IDs, not payloads or user data.
+
+## Email
+
+Local development uses Django's console email backend and does not need SMTP
+credentials. Production deployments must store SMTP or email-provider
+credentials in environment variables. Do not pass email passwords, app
+passwords, provider tokens, or generated feed URLs through Celery task
+arguments.
 
 ## Rate limits
 

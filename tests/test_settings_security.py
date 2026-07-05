@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -51,6 +53,16 @@ def test_running_tests_detects_coverage_running_pytest(monkeypatch):
 
 def test_running_tests_detects_python_m_pytest(monkeypatch):
     monkeypatch.setattr(app_settings.sys, "argv", ["python", "-m", "pytest"])
+
+    assert app_settings._running_tests() is True
+
+
+def test_running_tests_detects_pytest_module_entrypoint(monkeypatch):
+    monkeypatch.setattr(
+        app_settings.sys,
+        "argv",
+        [r"C:\repo\.venv\Lib\site-packages\pytest\__main__.py", "-k", "settings"],
+    )
 
     assert app_settings._running_tests() is True
 
@@ -114,13 +126,15 @@ def test_staticfiles_storage_uses_manifest_storage_in_production():
     )
 
 
-def test_database_uses_postgresql_by_default():
-    assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
+def test_database_uses_postgresql_by_default(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    assert app_settings._database_config()["ENGINE"] == "django.db.backends.postgresql"
 
 
 def test_secure_cookie_settings_follow_debug_mode():
-    assert settings.SESSION_COOKIE_SECURE is (not settings.DEBUG)
-    assert settings.CSRF_COOKIE_SECURE is (not settings.DEBUG)
+    assert app_settings.SESSION_COOKIE_SECURE is (not app_settings.DEBUG)
+    assert app_settings.CSRF_COOKIE_SECURE is (not app_settings.DEBUG)
 
 
 def test_upstream_client_settings_have_safe_defaults():
@@ -129,6 +143,20 @@ def test_upstream_client_settings_have_safe_defaults():
     assert "example.invalid" in settings.UPSTREAM_CONTACT
     assert settings.LASTFM_API_KEY == ""
     assert settings.LASTFM_API_SECRET == ""
+
+
+def test_email_settings_have_local_defaults_and_env_override():
+    expected_backend = os.environ.get(
+        "EMAIL_BACKEND",
+        "django.core.mail.backends.console.EmailBackend",
+    )
+
+    assert app_settings.EMAIL_BACKEND == expected_backend
+    assert app_settings.DEFAULT_FROM_EMAIL == "muspy@example.test"
+    assert app_settings.EMAIL_HOST == "localhost"
+    assert app_settings.EMAIL_PORT == 25
+    assert app_settings.EMAIL_USE_TLS is False
+    assert app_settings.EMAIL_USE_SSL is False
 
 
 def test_task_infrastructure_settings_have_production_defaults(settings):

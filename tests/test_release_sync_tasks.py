@@ -66,6 +66,16 @@ def test_fanout_release_notifications_task_fans_out_by_release_event_id(mocker):
     fanout.assert_called_once_with(release_event=event)
 
 
+def test_send_pending_notification_emails_task_sends_with_batch_size(mocker):
+    sender = mocker.patch("releasewatch.tasks.send_pending_notification_emails")
+
+    from releasewatch.tasks import send_pending_notification_emails_task
+
+    send_pending_notification_emails_task(batch_size=25)
+
+    sender.assert_called_once_with(batch_size=25)
+
+
 @pytest.mark.django_db
 def test_enqueue_due_artist_syncs_enqueues_followed_artists_without_sync_state(mocker):
     user = create_user("scanner-user")

@@ -1,6 +1,6 @@
 from django import forms
 
-from releasewatch.models import NotificationCadence, NotificationPreference
+from releasewatch.models import FeedToken, NotificationCadence, NotificationPreference
 
 
 class ArtistSearchForm(forms.Form):
@@ -36,3 +36,8 @@ class NotificationPreferenceForm(forms.ModelForm):
     class Meta:
         model = NotificationPreference
         fields = ["cadence", "email_enabled", "include_future_releases"]
+
+
+class FeedTokenForm(forms.Form):
+    feed_type = forms.ChoiceField(choices=FeedToken.FeedType.choices)
+    name = forms.CharField(max_length=100, required=False, strip=True)

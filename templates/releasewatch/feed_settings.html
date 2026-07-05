@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Feed settings{% endblock %}
+
+{% block content %}
+  <h1>Feed settings</h1>
+
+  {% if form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="form-errors-title">
+      <h2 id="form-errors-title">Fix these errors</h2>
+      {{ form.errors }}
+    </section>
+  {% endif %}
+
+  {% if new_feed_url %}
+    <section aria-labelledby="new-feed-url-title">
+      <h2 id="new-feed-url-title">New feed URL</h2>
+      <p>Copy this URL now. It will not be shown again.</p>
+      <label for="new-feed-url">Feed URL</label>
+      <input id="new-feed-url" type="text" value="{{ new_feed_url }}" readonly>
+    </section>
+  {% endif %}
+
+  <section aria-labelledby="create-feed-title">
+    <h2 id="create-feed-title">Create feed token</h2>
+    <form method="post" action="{% url 'releasewatch:feed_settings' %}">
+      {% csrf_token %}
+      <div class="field">
+        <label for="{{ form.feed_type.id_for_label }}">{{ form.feed_type.label }}</label>
+        <select
+          name="{{ form.feed_type.html_name }}"
+          id="{{ form.feed_type.id_for_label }}"
+          {% if form.feed_type.errors %}aria-invalid="true" aria-describedby="feed-type-errors"{% endif %}
+        >
+          {% for value, label in form.feed_type.field.choices %}
+            <option value="{{ value }}" {% if form.feed_type.value == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if form.feed_type.errors %}
+          <div id="feed-type-errors">{{ form.feed_type.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+        <input
+          type="text"
+          name="{{ form.name.html_name }}"
+          id="{{ form.name.id_for_label }}"
+          value="{{ form.name.value|default_if_none:'' }}"
+          maxlength="100"
+          {% if form.name.errors %}aria-invalid="true" aria-describedby="feed-name-errors"{% endif %}
+        >
+        {% if form.name.errors %}
+          <div id="feed-name-errors">{{ form.name.errors }}</div>
+        {% endif %}
+      </div>
+
+      <button type="submit">Create feed token</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="feed-tokens-title">
+    <h2 id="feed-tokens-title">Feed tokens</h2>
+    {% if tokens %}
+      <ul>
+        {% for token in tokens %}
+          <li>
+            <p>
+              {{ token.get_feed_type_display }} feed token
+              {% if token.name %}{{ token.name }}{% endif %}
+              {% if token.revoked_at %}
+                revoked
+              {% else %}
+                active
+              {% endif %}
+            </p>
+            {% if token.revoked_at %}
+              <p>This token is revoked.</p>
+            {% else %}
+              <form method="post" action="{% url 'releasewatch:revoke_feed_token' token.id %}">
+                {% csrf_token %}
+                <button type="submit">
+                  Revoke {{ token.get_feed_type_display }} feed token{% if token.name %} {{ token.name }}{% endif %}
+                </button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No feed tokens yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

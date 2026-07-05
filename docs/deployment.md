@@ -57,7 +57,9 @@ Required production environment values include:
 - `SECRET_KEY` set to a strong private value
 - `DATABASE_URL` pointing at the production PostgreSQL database
 - `ALLOWED_HOSTS` set to the deployed hostnames
-- Email settings for outbound notifications when notifications are enabled
+- Email settings for outbound notifications when notifications are enabled:
+  `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`,
+  `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, and `DEFAULT_FROM_EMAIL`
 
 Install locked dependencies:
 
@@ -80,6 +82,10 @@ uv run --no-dev python manage.py check --deploy
 Use your normal process manager or platform service definition to run the WSGI
 or ASGI entry point. Do not run Django's development server for production
 traffic.
+
+Run Celery workers for imports, sync, notifications, and maintenance. The
+notification worker sends pending email through Django's configured email
+backend.
 
 ## Admin bootstrap
 

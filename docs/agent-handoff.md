@@ -1,10 +1,10 @@
 # Agent Handoff
 
-Last updated: 2026-06-23
+Last updated: 2026-07-05
 
 ## Current Phase
 
-Accessible server-rendered UI and Redis-backed rate limits complete. Task infrastructure, import workflow, upstream clients, release sync, notification fanout, and domain models complete.
+Accessible server-rendered UI, Redis-backed rate limits, task infrastructure, import workflow, upstream clients, release sync, notification fanout, feed token UI, RSS/iCal feeds, email delivery, and domain models complete.
 
 ## Repository
 
@@ -119,7 +119,7 @@ Create a modern Muspy successor using Django 6, Python 3.14, PostgreSQL 18, `uv`
 
 ## Next Required Step
 
-Plan RSS/iCal feed token UI or email delivery, depending on user choice.
+Run full verification on the local PostgreSQL/Redis/RabbitMQ stack, then commit the final MVP checkpoint.
 
 ## Open Questions
 
