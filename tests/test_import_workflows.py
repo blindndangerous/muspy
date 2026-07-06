@@ -511,9 +511,124 @@ def test_run_import_task_skips_already_pending_review_run():
 
 
 @pytest.mark.django_db
+def test_run_import_task_processes_lastfm_run(mocker):
+    user = create_user("task-lastfm-user")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LASTFM,
+        raw_payload={"username": "listener"},
+    )
+    imported_run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LASTFM,
+        status=ImportRun.Status.PENDING_REVIEW,
+    )
+    ImportCandidate.objects.create(
+        import_run=imported_run,
+        source_name="Fugazi",
+        source_identifier="lastfm:fugazi",
+    )
+    start_lastfm = mocker.patch("releasewatch.tasks.start_lastfm_import", return_value=imported_run)
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    run.refresh_from_db()
+    start_lastfm.assert_called_once_with(user=user, username="listener")
+    assert run.status == ImportRun.Status.PENDING_REVIEW
+    assert run.candidates.get().source_name == "Fugazi"
+    assert not ImportRun.objects.filter(pk=imported_run.pk).exists()
+
+
+@pytest.mark.django_db
+def test_run_import_task_processes_listenbrainz_run_with_encrypted_token(settings, mocker):
+    from cryptography.fernet import Fernet
+
+    from releasewatch.provider_tokens import encrypt_provider_token
+
+    settings.PROVIDER_TOKEN_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    user = create_user("task-listenbrainz-user")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LISTENBRAINZ,
+        raw_payload={
+            "username": "listener",
+            "token_encrypted": encrypt_provider_token("private-token"),  # noqa: S106
+        },
+    )
+    imported_run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LISTENBRAINZ,
+        status=ImportRun.Status.PENDING_REVIEW,
+    )
+    ImportCandidate.objects.create(
+        import_run=imported_run,
+        source_name="Unwound",
+        source_identifier="listenbrainz:unwound",
+    )
+    start_listenbrainz = mocker.patch(
+        "releasewatch.tasks.start_listenbrainz_import",
+        return_value=imported_run,
+    )
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    run.refresh_from_db()
+    start_listenbrainz.assert_called_once_with(
+        user=user,
+        username="listener",
+        token="private-token",  # noqa: S106
+        persist_token=False,
+    )
+    assert run.status == ImportRun.Status.PENDING_REVIEW
+    assert run.candidates.get().source_name == "Unwound"
+    assert not ImportRun.objects.filter(pk=imported_run.pk).exists()
+
+
+@pytest.mark.django_db
+def test_run_import_task_marks_listenbrainz_missing_token_failed():
+    user = create_user("task-listenbrainz-missing-token-user")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LISTENBRAINZ,
+        raw_payload={"username": "listener"},
+    )
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    run.refresh_from_db()
+    assert run.status == ImportRun.Status.FAILED
+    assert "ListenBrainz token is missing" in run.error_message
+
+
+@pytest.mark.django_db
+def test_run_import_task_marks_listenbrainz_unreadable_token_failed(settings):
+    settings.PROVIDER_TOKEN_ENCRYPTION_KEY = ""
+    user = create_user("task-listenbrainz-unreadable-token-user")
+    run = ImportRun.objects.create(
+        user=user,
+        source=ImportRun.Source.LISTENBRAINZ,
+        raw_payload={"username": "listener", "token_encrypted": "not-readable"},
+    )
+
+    from releasewatch.tasks import run_import
+
+    run_import(run.id)
+
+    run.refresh_from_db()
+    assert run.status == ImportRun.Status.FAILED
+    assert "ListenBrainz token could not be read" in run.error_message
+
+
+@pytest.mark.django_db
 def test_run_import_task_marks_unsupported_source_failed():
     user = create_user("task-unsupported-user")
-    run = ImportRun.objects.create(user=user, source=ImportRun.Source.LASTFM)
+    run = ImportRun.objects.create(user=user, source="unsupported")
 
     from releasewatch.tasks import run_import
 

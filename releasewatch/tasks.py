@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
@@ -25,17 +26,47 @@ def run_import(self, import_run_id: int) -> None:
     if run.source == ImportRun.Source.PLAIN_TEXT:
         text = str(run.raw_payload.get("text", ""))
         imported_run = start_plain_text_import(user=run.user, text=text)
-        run.candidates.all().delete()
-        for candidate in imported_run.candidates.all():
-            candidate.import_run = run
-            candidate.pk = None
-            candidate.save()
-        imported_run.delete()
-        run.status = ImportRun.Status.PENDING_REVIEW
-        run.error_message = ""
-        run.save(update_fields=["status", "error_message", "updated_at"])
+        _replace_import_run_contents(run=run, imported_run=imported_run)
+        return
+    if run.source == ImportRun.Source.LASTFM:
+        imported_run = start_lastfm_import(
+            user=run.user,
+            username=str(run.raw_payload.get("username", "")),
+        )
+        _replace_import_run_contents(run=run, imported_run=imported_run)
+        return
+    if run.source == ImportRun.Source.LISTENBRAINZ:
+        token_encrypted = str(run.raw_payload.get("token_encrypted", ""))
+        try:
+            token = decrypt_provider_token(token_encrypted)
+        except (ImproperlyConfigured, ProviderTokenError):
+            mark_import_failed(run=run, message="ListenBrainz token could not be read.")
+            return
+        if not token:
+            mark_import_failed(run=run, message="ListenBrainz token is missing.")
+            return
+        imported_run = start_listenbrainz_import(
+            user=run.user,
+            username=str(run.raw_payload.get("username", "")),
+            token=token,
+            persist_token=False,
+        )
+        _replace_import_run_contents(run=run, imported_run=imported_run)
         return
     mark_import_failed(run=run, message=f"Unsupported import source: {run.source}")
+
+
+def _replace_import_run_contents(*, run: ImportRun, imported_run: ImportRun) -> None:
+    run.candidates.all().delete()
+    for candidate in imported_run.candidates.all():
+        candidate.import_run = run
+        candidate.pk = None
+        candidate.save()
+    run.status = imported_run.status
+    run.error_message = imported_run.error_message
+    run.raw_payload = imported_run.raw_payload
+    run.save(update_fields=["status", "error_message", "raw_payload", "updated_at"])
+    imported_run.delete()
 
 
 @shared_task(bind=True, autoretry_for=(TimeoutError,), retry_backoff=True, retry_jitter=True)

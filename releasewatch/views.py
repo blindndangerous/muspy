@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,7 +22,10 @@ from releasewatch.forms import (
     FollowArtistForm,
     ImportCandidateReviewForm,
     InviteSignupForm,
+    LastFmImportForm,
+    ListenBrainzImportForm,
     NotificationPreferenceForm,
+    PlainTextImportForm,
 )
 from releasewatch.imports import (
     accept_import_candidate,
@@ -38,12 +42,14 @@ from releasewatch.models import (
     NotificationPreference,
     ReleaseEvent,
 )
+from releasewatch.provider_tokens import encrypt_provider_token
 from releasewatch.rate_limits import (
     RateLimitUnavailable,
     check_rate_limit,
     rate_limit_unavailable_response,
     rate_limited_response,
 )
+from releasewatch.tasks import run_import as run_import_task
 from releasewatch.tasks import sync_artist_releases_task
 from releasewatch.upstreams import MusicBrainzClient, UpstreamError
 
@@ -174,7 +180,103 @@ def follow_list(request):
 @login_required
 def import_list(request):
     runs = ImportRun.objects.filter(user=request.user).order_by("-created_at", "-id")
-    return render(request, "releasewatch/import_list.html", {"runs": runs})
+    forms = _import_start_forms()
+    import_source_error = ""
+
+    if request.method == "POST":
+        limited_response = _guard_rate_limit(
+            request,
+            scope="import-create",
+            rate=settings.RATE_LIMIT_IMPORT_CREATE,
+        )
+        if limited_response is not None:
+            return limited_response
+
+        source = request.POST.get("source", "")
+        forms = _import_start_forms(data=request.POST, source=source)
+        form = forms.get(source)
+        if form is None:
+            import_source_error = "Choose a valid import source."
+        elif form.is_valid():
+            try:
+                run = _create_import_run_from_form(
+                    user=request.user,
+                    source=source,
+                    form=form,
+                )
+            except ImproperlyConfigured:
+                form.add_error("token", "ListenBrainz imports are temporarily unavailable.")
+                return render(
+                    request,
+                    "releasewatch/import_list.html",
+                    _import_list_context(runs=runs, forms=forms),
+                    status=503,
+                )
+            else:
+                return redirect("releasewatch:import_detail", run_id=run.id)
+
+        return render(
+            request,
+            "releasewatch/import_list.html",
+            _import_list_context(
+                runs=runs,
+                forms=forms,
+                import_source_error=import_source_error,
+            ),
+            status=400,
+        )
+
+    return render(
+        request,
+        "releasewatch/import_list.html",
+        _import_list_context(runs=runs, forms=forms),
+    )
+
+
+def _import_start_forms(*, data=None, source=""):
+    return {
+        ImportRun.Source.PLAIN_TEXT: PlainTextImportForm(
+            data if source == ImportRun.Source.PLAIN_TEXT else None,
+            prefix="plain_text",
+        ),
+        ImportRun.Source.LASTFM: LastFmImportForm(
+            data if source == ImportRun.Source.LASTFM else None,
+            prefix="lastfm",
+        ),
+        ImportRun.Source.LISTENBRAINZ: ListenBrainzImportForm(
+            data if source == ImportRun.Source.LISTENBRAINZ else None,
+            prefix="listenbrainz",
+        ),
+    }
+
+
+def _import_list_context(*, runs, forms, import_source_error=""):
+    return {
+        "runs": runs,
+        "plain_text_form": forms[ImportRun.Source.PLAIN_TEXT],
+        "lastfm_form": forms[ImportRun.Source.LASTFM],
+        "listenbrainz_form": forms[ImportRun.Source.LISTENBRAINZ],
+        "import_source_error": import_source_error,
+    }
+
+
+def _create_import_run_from_form(*, user, source, form):
+    if source == ImportRun.Source.PLAIN_TEXT:
+        raw_payload = {"text": form.cleaned_data["artist_names"]}
+    elif source == ImportRun.Source.LISTENBRAINZ:
+        raw_payload = {"username": form.cleaned_data["username"]}
+        raw_payload["token_encrypted"] = encrypt_provider_token(form.cleaned_data["token"])
+    else:
+        raw_payload = {"username": form.cleaned_data["username"]}
+
+    run = ImportRun.objects.create(
+        user=user,
+        source=source,
+        status=ImportRun.Status.STARTED,
+        raw_payload=raw_payload,
+    )
+    run_import_task.delay(run.id)
+    return run
 
 
 @login_required

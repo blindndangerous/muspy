@@ -4,6 +4,67 @@
 
 {% block content %}
   <h1>Imports</h1>
+
+  {% if plain_text_form.errors or lastfm_form.errors or listenbrainz_form.errors or import_source_error %}
+    <section class="error-summary" role="alert" aria-labelledby="import-errors-title">
+      <h2 id="import-errors-title">Fix these errors</h2>
+      {% if import_source_error %}
+        <p>{{ import_source_error }}</p>
+      {% endif %}
+      {{ plain_text_form.errors }}
+      {{ lastfm_form.errors }}
+      {{ listenbrainz_form.errors }}
+    </section>
+  {% endif %}
+
+  <section aria-labelledby="start-imports-title">
+    <h2 id="start-imports-title">Start an import</h2>
+
+    <form method="post" action="{% url 'releasewatch:import_list' %}">
+      {% csrf_token %}
+      <fieldset>
+        <legend>Paste artist names</legend>
+        {{ plain_text_form.artist_names.errors }}
+        <p>
+          {{ plain_text_form.artist_names.label_tag }}
+          {{ plain_text_form.artist_names }}
+        </p>
+        <button type="submit" name="source" value="plain_text">Start plain text import</button>
+      </fieldset>
+    </form>
+
+    <form method="post" action="{% url 'releasewatch:import_list' %}">
+      {% csrf_token %}
+      <fieldset>
+        <legend>Last.fm</legend>
+        {{ lastfm_form.username.errors }}
+        <p>
+          {{ lastfm_form.username.label_tag }}
+          {{ lastfm_form.username }}
+        </p>
+        <button type="submit" name="source" value="lastfm">Start Last.fm import</button>
+      </fieldset>
+    </form>
+
+    <form method="post" action="{% url 'releasewatch:import_list' %}">
+      {% csrf_token %}
+      <fieldset>
+        <legend>ListenBrainz</legend>
+        {{ listenbrainz_form.username.errors }}
+        <p>
+          {{ listenbrainz_form.username.label_tag }}
+          {{ listenbrainz_form.username }}
+        </p>
+        {{ listenbrainz_form.token.errors }}
+        <p>
+          {{ listenbrainz_form.token.label_tag }}
+          {{ listenbrainz_form.token }}
+        </p>
+        <button type="submit" name="source" value="listenbrainz">Start ListenBrainz import</button>
+      </fieldset>
+    </form>
+  </section>
+
   {% if runs %}
     <table>
       <caption>Your import runs</caption>
