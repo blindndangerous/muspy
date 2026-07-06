@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Frequently Asked Questions{% endblock %}
+
+{% block content %}
+  <h1>Frequently Asked Questions</h1>
+
+  <h2>Where does release data come from?</h2>
+  <p>Release data comes from MusicBrainz. Missing or incorrect artist and release data should be fixed in MusicBrainz first.</p>
+
+  <h2>Do I need an account?</h2>
+  <p>Public release pages and public API endpoints do not require an account. Following artists, imports, feeds, and notifications require signing in.</p>
+
+  <h2>Why are some releases missing?</h2>
+  <p>Only visible releases known to the current Muspy database are listed. Data freshness depends on sync jobs and upstream availability.</p>
+{% endblock content %}

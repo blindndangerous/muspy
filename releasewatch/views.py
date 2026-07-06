@@ -8,7 +8,9 @@ from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonRespo
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_GET
 
+from releasewatch.api import serialize_artist_detail, serialize_release_event
 from releasewatch.feeds import (
     create_feed_token_record,
     feed_token_for_request,
@@ -62,6 +64,8 @@ from releasewatch.rate_limits import (
 from releasewatch.tasks import run_import as run_import_task
 from releasewatch.tasks import sync_artist_releases_task
 from releasewatch.upstreams import MusicBrainzClient, UpstreamError
+
+PUBLIC_API_EVENT_LIMIT = 100
 
 
 def health(request):
@@ -132,6 +136,56 @@ def release_list(request):
         "releasewatch/release_list.html",
         {"events": visible_release_events()[:100]},
     )
+
+
+def about(request):
+    return render(request, "releasewatch/about.html")
+
+
+def faq(request):
+    return render(request, "releasewatch/faq.html")
+
+
+def contact(request):
+    return render(request, "releasewatch/contact.html")
+
+
+def sitemap(request):
+    route_names = [
+        "releasewatch:home",
+        "releasewatch:about",
+        "releasewatch:faq",
+        "releasewatch:contact",
+        "releasewatch:release_list",
+        "releasewatch:api_v1_release_list",
+    ]
+    urls = [request.build_absolute_uri(reverse(route_name)) for route_name in route_names]
+    return render(
+        request,
+        "releasewatch/sitemap.xml",
+        {"urls": urls},
+        content_type="application/xml; charset=utf-8",
+    )
+
+
+@require_GET
+def api_v1_release_list(request):
+    events = visible_release_events()[:PUBLIC_API_EVENT_LIMIT]
+    return JsonResponse(
+        {"releases": [serialize_release_event(event) for event in events]},
+    )
+
+
+@require_GET
+def api_v1_artist_detail(request, artist_mbid):
+    artist = get_object_or_404(
+        Artist.objects.filter(release_groups__events__visible=True).distinct(),
+        mbid=artist_mbid,
+    )
+    events = visible_release_events().filter(release_group__artist=artist)[
+        :PUBLIC_API_EVENT_LIMIT
+    ]
+    return JsonResponse(serialize_artist_detail(artist, events))
 
 
 def signup_with_invite(request, code: str):

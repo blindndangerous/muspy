@@ -6,8 +6,17 @@ app_name = "releasewatch"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("about/", views.about, name="about"),
+    path(
+        "api/v1/artists/<uuid:artist_mbid>/",
+        views.api_v1_artist_detail,
+        name="api_v1_artist_detail",
+    ),
+    path("api/v1/releases/", views.api_v1_release_list, name="api_v1_release_list"),
     path("accounts/signup/<str:code>/", views.signup_with_invite, name="signup_with_invite"),
+    path("contact/", views.contact, name="contact"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("faq/", views.faq, name="faq"),
     path("follows/", views.follow_list, name="follow_list"),
     path("follows/<int:follow_id>/remove/", views.remove_follow, name="remove_follow"),
     path("imports/", views.import_list, name="import_list"),
@@ -34,4 +43,5 @@ urlpatterns = [
     path("feeds/<str:token>/ical/", views.ical_feed, name="ical_feed"),
     path("releases/", views.release_list, name="release_list"),
     path("releases/<int:event_id>/", views.release_detail, name="release_detail"),
+    path("sitemap.xml", views.sitemap, name="sitemap"),
 ]

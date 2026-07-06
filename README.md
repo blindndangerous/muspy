@@ -63,3 +63,24 @@ uv run pytest
 For a full local setup, including PostgreSQL, migrations, and the development
 admin account, see `docs/development.md`. For testing with live MusicBrainz
 data, see `docs/development.md#testing-with-real-data`.
+
+## Public routes
+
+Public HTML pages:
+
+- `/` - release overview
+- `/releases/` - visible public releases
+- `/artists/<id>/` - artist detail for artists with visible releases
+- `/about/` - project overview
+- `/faq/` - frequently asked questions
+- `/contact/` - support and source links
+- `/sitemap.xml` - XML sitemap for public surfaces
+
+Public API v1 JSON endpoints:
+
+- `/api/v1/releases/` - read-only visible release list, capped at 100 items
+- `/api/v1/artists/<artist-mbid>/` - read-only artist detail with up to 100 visible releases
+
+The public API exposes release and artist metadata only. It does not expose user
+emails, feed tokens, notification settings, private imports, or raw upstream
+payloads.
