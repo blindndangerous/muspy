@@ -11,6 +11,7 @@ urlpatterns = [
     path("follows/", views.follow_list, name="follow_list"),
     path("follows/<int:follow_id>/remove/", views.remove_follow, name="remove_follow"),
     path("imports/", views.import_list, name="import_list"),
+    path("settings/account/", views.account_settings, name="account_settings"),
     path("settings/feeds/", views.feed_settings, name="feed_settings"),
     path(
         "settings/feeds/<int:token_id>/revoke/",

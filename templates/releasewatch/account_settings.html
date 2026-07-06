@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Account settings{% endblock %}
+
+{% block content %}
+  <h1>Account settings</h1>
+
+  {% if account_form.errors or password_form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="account-settings-errors-title">
+      <h2 id="account-settings-errors-title">Fix these errors</h2>
+      {% if account_form.non_field_errors %}
+        {{ account_form.non_field_errors }}
+      {% endif %}
+      {% if password_form.non_field_errors %}
+        {{ password_form.non_field_errors }}
+      {% endif %}
+      {% if account_form.errors %}
+        <p>Review account details errors below.</p>
+      {% endif %}
+      {% if password_form.errors %}
+        <p>Review password errors below.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <form method="post" action="{% url 'releasewatch:account_settings' %}">
+    {% csrf_token %}
+    <fieldset>
+      <legend>Account details</legend>
+
+      <div class="field">
+        {{ account_form.email.label_tag }}
+        {{ account_form.email }}
+        {% if account_form.email.help_text %}
+          <p id="{{ account_form.email.auto_id }}_helptext">{{ account_form.email.help_text }}</p>
+        {% endif %}
+        {% if account_form.email.errors %}
+          <div id="{{ account_form.email.auto_id }}_error" role="alert">
+            {{ account_form.email.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        {{ account_form.timezone.label_tag }}
+        {{ account_form.timezone }}
+        {% if account_form.timezone.help_text %}
+          <p id="{{ account_form.timezone.auto_id }}_helptext">
+            {{ account_form.timezone.help_text }}
+          </p>
+        {% endif %}
+        {% if account_form.timezone.errors %}
+          <div id="{{ account_form.timezone.auto_id }}_error" role="alert">
+            {{ account_form.timezone.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        {{ account_form.country.label_tag }}
+        {{ account_form.country }}
+        {% if account_form.country.help_text %}
+          <p id="{{ account_form.country.auto_id }}_helptext">
+            {{ account_form.country.help_text }}
+          </p>
+        {% endif %}
+        {% if account_form.country.errors %}
+          <div id="{{ account_form.country.auto_id }}_error" role="alert">
+            {{ account_form.country.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <button type="submit" name="account-submit" value="1">Save account settings</button>
+    </fieldset>
+  </form>
+
+  <form method="post" action="{% url 'releasewatch:account_settings' %}">
+    {% csrf_token %}
+    <fieldset>
+      <legend>Change password</legend>
+
+      <div class="field">
+        {{ password_form.old_password.label_tag }}
+        {{ password_form.old_password }}
+        {% if password_form.old_password.errors %}
+          <div id="{{ password_form.old_password.auto_id }}_error" role="alert">
+            {{ password_form.old_password.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        {{ password_form.new_password1.label_tag }}
+        {{ password_form.new_password1 }}
+        {% if password_form.new_password1.help_text %}
+          <div id="{{ password_form.new_password1.auto_id }}_helptext">
+            {{ password_form.new_password1.help_text }}
+          </div>
+        {% endif %}
+        {% if password_form.new_password1.errors %}
+          <div id="{{ password_form.new_password1.auto_id }}_error" role="alert">
+            {{ password_form.new_password1.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        {{ password_form.new_password2.label_tag }}
+        {{ password_form.new_password2 }}
+        {% if password_form.new_password2.help_text %}
+          <p id="{{ password_form.new_password2.auto_id }}_helptext">
+            {{ password_form.new_password2.help_text }}
+          </p>
+        {% endif %}
+        {% if password_form.new_password2.errors %}
+          <div id="{{ password_form.new_password2.auto_id }}_error" role="alert">
+            {{ password_form.new_password2.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <button type="submit" name="password-submit" value="1">Change password</button>
+    </fieldset>
+  </form>
+{% endblock %}

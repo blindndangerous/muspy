@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
@@ -17,6 +17,8 @@ from releasewatch.feeds import (
     user_release_events,
 )
 from releasewatch.forms import (
+    AccountPasswordChangeForm,
+    AccountSettingsForm,
     ArtistSearchForm,
     FeedTokenForm,
     FollowArtistForm,
@@ -42,6 +44,7 @@ from releasewatch.models import (
     Invite,
     NotificationPreference,
     ReleaseEvent,
+    UserProfile,
 )
 from releasewatch.provider_tokens import encrypt_provider_token
 from releasewatch.rate_limits import (
@@ -330,6 +333,45 @@ def notification_settings(request):
     else:
         form = NotificationPreferenceForm(instance=preference)
     return render(request, "releasewatch/notification_settings.html", {"form": form})
+
+
+@login_required
+def account_settings(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    account_form = AccountSettingsForm(user=request.user, profile=profile)
+    password_form = AccountPasswordChangeForm(user=request.user)
+
+    if request.method == "POST":
+        if "password-submit" in request.POST:
+            limited_response = _guard_rate_limit(
+                request,
+                scope="account-password",
+                rate=settings.RATE_LIMIT_ACCOUNT_PASSWORD,
+            )
+            if limited_response is not None:
+                return limited_response
+            password_form = AccountPasswordChangeForm(user=request.user, data=request.POST)
+            if password_form.is_valid():
+                user = password_form.save()
+                update_session_auth_hash(request, user)
+                messages.success(request, "Password changed.")
+                return redirect("releasewatch:account_settings")
+        else:
+            account_form = AccountSettingsForm(
+                request.POST,
+                user=request.user,
+                profile=profile,
+            )
+            if account_form.is_valid():
+                account_form.save()
+                messages.success(request, "Account settings saved.")
+                return redirect("releasewatch:account_settings")
+
+    return render(
+        request,
+        "releasewatch/account_settings.html",
+        {"account_form": account_form, "password_form": password_form},
+    )
 
 
 @login_required

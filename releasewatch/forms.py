@@ -1,12 +1,26 @@
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import PasswordChangeForm, UserCreationForm
 
-from releasewatch.models import FeedToken, NotificationCadence, NotificationPreference
+from releasewatch.models import FeedToken, NotificationCadence, NotificationPreference, UserProfile
 
 PLAIN_TEXT_IMPORT_MAX_CHARS = 20_000
 PLAIN_TEXT_IMPORT_MAX_NON_EMPTY_LINES = 500
 LISTENBRAINZ_TOKEN_MAX_CHARS = 4_096
+
+
+def _apply_accessible_field_attrs(form):
+    for name, field in form.fields.items():
+        described_by = []
+        if field.help_text:
+            described_by.append(f"id_{name}_helptext")
+        if form.is_bound and form.errors.get(name):
+            field.widget.attrs["aria-invalid"] = "true"
+            described_by.append(f"id_{name}_error")
+        if described_by:
+            field.widget.attrs["aria-describedby"] = " ".join(described_by)
 
 
 class ArtistSearchForm(forms.Form):
@@ -95,6 +109,78 @@ class NotificationPreferenceForm(forms.ModelForm):
 class FeedTokenForm(forms.Form):
     feed_type = forms.ChoiceField(choices=FeedToken.FeedType.choices)
     name = forms.CharField(max_length=100, required=False, strip=True)
+
+
+class AccountSettingsForm(forms.Form):
+    email = forms.EmailField(
+        label="Email address",
+        help_text="Used for account and notification email.",
+    )
+    timezone = forms.CharField(
+        label="Time zone",
+        max_length=64,
+        help_text="Use an IANA time zone name, such as UTC or America/Denver.",
+    )
+    country = forms.CharField(
+        label="Country",
+        max_length=2,
+        required=False,
+        help_text="Optional two-letter country code, such as US or GB.",
+    )
+
+    def __init__(self, *args, user, profile: UserProfile, **kwargs):
+        self.user = user
+        self.profile = profile
+        initial = {
+            "email": user.email,
+            "timezone": profile.timezone,
+            "country": profile.country.upper(),
+        }
+        initial.update(kwargs.pop("initial", {}))
+        super().__init__(*args, initial=initial, **kwargs)
+        self.fields["email"].widget.attrs["autocomplete"] = "email"
+        self.fields["timezone"].widget.attrs["autocomplete"] = "off"
+        self.fields["country"].widget.attrs["autocomplete"] = "country"
+        _apply_accessible_field_attrs(self)
+
+    def clean_timezone(self):
+        value = self.cleaned_data["timezone"].strip()
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as error:
+            raise forms.ValidationError(
+                "Enter a valid IANA time zone, such as UTC or America/Denver."
+            ) from error
+        return value
+
+    def clean_country(self):
+        value = self.cleaned_data["country"].strip().upper()
+        if value and (len(value) != 2 or not value.isalpha()):
+            raise forms.ValidationError("Enter a two-letter country code.")
+        return value
+
+    def save(self):
+        email_changed = self.user.email != self.cleaned_data["email"]
+        self.user.email = self.cleaned_data["email"]
+        self.user.save(update_fields=["email"])
+
+        self.profile.timezone = self.cleaned_data["timezone"]
+        self.profile.country = self.cleaned_data["country"]
+        update_fields = ["timezone", "country"]
+        if email_changed:
+            self.profile.email_verified_at = None
+            update_fields.append("email_verified_at")
+        self.profile.save(update_fields=update_fields)
+        return self.user, self.profile
+
+
+class AccountPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["old_password"].widget.attrs["autocomplete"] = "current-password"
+        self.fields["new_password1"].widget.attrs["autocomplete"] = "new-password"
+        self.fields["new_password2"].widget.attrs["autocomplete"] = "new-password"
+        _apply_accessible_field_attrs(self)
 
 
 class InviteSignupForm(UserCreationForm):

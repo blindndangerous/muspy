@@ -192,3 +192,4 @@ def test_rate_limit_settings_are_bounded(settings):
     assert settings.RATE_LIMIT_IMPORT_CREATE == (10, 3600)
     assert settings.RATE_LIMIT_IMPORT_REVIEW == (120, 60)
     assert settings.RATE_LIMIT_NOTIFICATION_SETTINGS == (30, 60)
+    assert settings.RATE_LIMIT_ACCOUNT_PASSWORD == (10, 3600)
