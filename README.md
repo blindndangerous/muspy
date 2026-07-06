@@ -81,6 +81,18 @@ Public API v1 JSON endpoints:
 - `/api/v1/releases/` - read-only visible release list, capped at 100 items
 - `/api/v1/artists/<artist-mbid>/` - read-only artist detail with up to 100 visible releases
 
+`/api/v1/releases/` accepts these query parameters:
+
+- `limit` - number of releases to return. Defaults to 100 and values above 100
+  are capped at 100.
+- `offset` - number of matching releases to skip. Defaults to 0. The maximum
+  offset is 10000.
+- `artist_mbid` - filter releases to one MusicBrainz artist MBID.
+- `since` - filter to release events updated after an ISO datetime, for example
+  `2026-01-01T00:00:00Z`.
+
+Invalid query parameters return a 400 JSON response with an `errors` object.
+
 The public API exposes release and artist metadata only. It does not expose user
 emails, feed tokens, notification settings, private imports, or raw upstream
 payloads.

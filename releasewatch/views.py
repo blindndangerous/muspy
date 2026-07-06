@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
@@ -8,6 +10,7 @@ from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonRespo
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 
 from releasewatch.api import serialize_artist_detail, serialize_release_event
@@ -68,6 +71,7 @@ from releasewatch.tasks import sync_artist_releases_task
 from releasewatch.upstreams import MusicBrainzClient, UpstreamError
 
 PUBLIC_API_EVENT_LIMIT = 100
+PUBLIC_API_MAX_OFFSET = 10_000
 
 
 def health(request):
@@ -172,10 +176,86 @@ def sitemap(request):
 
 @require_GET
 def api_v1_release_list(request):
-    events = visible_release_events()[:PUBLIC_API_EVENT_LIMIT]
+    options, errors = _public_api_release_list_options(request.GET)
+    if errors:
+        return JsonResponse({"errors": errors}, status=400)
+
+    events = visible_release_events()
+    if options["artist_mbid"] is not None:
+        events = events.filter(release_group__artist__mbid=options["artist_mbid"])
+    if options["since"] is not None:
+        events = events.filter(updated_at__gt=options["since"])
+    events = events[options["offset"] : options["offset"] + options["limit"]]
     return JsonResponse(
         {"releases": [serialize_release_event(event) for event in events]},
     )
+
+
+def _public_api_release_list_options(params):
+    errors = {}
+    limit = _parse_limit(params, errors)
+    offset = _parse_offset(params, errors)
+    artist_mbid = _parse_artist_mbid(params, errors)
+    since = _parse_since(params, errors)
+    return {
+        "limit": limit,
+        "offset": offset,
+        "artist_mbid": artist_mbid,
+        "since": since,
+    }, errors
+
+
+def _parse_limit(params, errors):
+    raw_limit = params.get("limit", str(PUBLIC_API_EVENT_LIMIT))
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        errors["limit"] = "Enter a positive integer."
+        return PUBLIC_API_EVENT_LIMIT
+    if limit < 1:
+        errors["limit"] = "Enter a positive integer."
+        return PUBLIC_API_EVENT_LIMIT
+    return min(limit, PUBLIC_API_EVENT_LIMIT)
+
+
+def _parse_offset(params, errors):
+    raw_offset = params.get("offset", "0")
+    try:
+        offset = int(raw_offset)
+    except (TypeError, ValueError):
+        errors["offset"] = "Enter a non-negative integer."
+        return 0
+    if offset < 0:
+        errors["offset"] = "Enter a non-negative integer."
+        return 0
+    if offset > PUBLIC_API_MAX_OFFSET:
+        errors["offset"] = f"Enter an offset no greater than {PUBLIC_API_MAX_OFFSET}."
+        return 0
+    return offset
+
+
+def _parse_artist_mbid(params, errors):
+    raw_artist_mbid = params.get("artist_mbid")
+    if not raw_artist_mbid:
+        return None
+    try:
+        return UUID(raw_artist_mbid)
+    except ValueError:
+        errors["artist_mbid"] = "Enter a valid MusicBrainz artist MBID."
+        return None
+
+
+def _parse_since(params, errors):
+    raw_since = params.get("since")
+    if not raw_since:
+        return None
+    since = parse_datetime(raw_since)
+    if since is None:
+        errors["since"] = "Enter a valid ISO datetime."
+        return None
+    if timezone.is_naive(since):
+        since = timezone.make_aware(since)
+    return since
 
 
 @require_GET

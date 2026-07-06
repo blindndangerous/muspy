@@ -431,6 +431,7 @@ class ReleaseEvent(models.Model):
         indexes = [
             models.Index(fields=["event_date", "date_precision"]),
             models.Index(fields=["visible", "notifiable"]),
+            models.Index(fields=["visible", "updated_at"]),
         ]
         constraints = [
             models.UniqueConstraint(
