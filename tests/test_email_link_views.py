@@ -1,5 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.core import signing
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse
 
@@ -25,6 +26,18 @@ def test_unsubscribe_token_generation_round_trips_user():
     token = make_unsubscribe_token(user)
 
     assert user_for_unsubscribe_token(token) == user
+
+
+def test_unsubscribe_token_without_user_id_is_rejected():
+    from releasewatch.notifications import InvalidEmailLinkToken, user_for_unsubscribe_token
+
+    token = signing.dumps(
+        {"purpose": "notification-unsubscribe"},
+        salt="releasewatch.email-links",
+    )
+
+    with pytest.raises(InvalidEmailLinkToken):
+        user_for_unsubscribe_token(token)
 
 
 def test_unsubscribe_get_valid_token_shows_confirmation_without_disabling_email(client):

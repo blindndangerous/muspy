@@ -88,6 +88,29 @@ def test_account_settings_updates_email_timezone_and_country(client):
     assert profile.country == "GB"
 
 
+def test_account_settings_keeps_email_verification_when_email_unchanged(client):
+    user = create_user()
+    verified_at = timezone.now()
+    UserProfile.objects.create(user=user, email_verified_at=verified_at)
+    client.force_login(user)
+
+    response = client.post(
+        reverse("releasewatch:account_settings"),
+        {
+            "account-submit": "1",
+            "email": user.email,
+            "timezone": "America/Denver",
+            "country": "us",
+        },
+    )
+
+    assert response.status_code == 302
+    profile = UserProfile.objects.get(user=user)
+    assert profile.email_verified_at == verified_at
+    assert profile.timezone == "America/Denver"
+    assert profile.country == "US"
+
+
 def test_account_settings_email_change_clears_email_verification(client):
     user = create_user()
     verified_at = timezone.now()

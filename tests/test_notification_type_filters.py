@@ -120,6 +120,23 @@ def test_fanout_treats_blank_and_unknown_primary_types_as_other(primary_type):
     assert Notification.objects.count() == 0
 
 
+def test_fanout_ignores_malformed_secondary_types():
+    event = create_release_event(primary_type="Album", secondary_types=["Live"])
+    ReleaseGroup.objects.filter(pk=event.release_group_id).update(secondary_types="Live")
+    event.release_group.refresh_from_db()
+    user = create_user("malformed-secondary")
+    Follow.objects.create(user=user, artist=event.release_group.artist)
+    NotificationPreference.objects.create(user=user, include_live=False)
+
+    from releasewatch.notifications import fanout_release_event_notifications
+
+    result = fanout_release_event_notifications(release_event=event)
+
+    assert result.created_count == 1
+    assert result.skipped_count == 0
+    assert Notification.objects.count() == 1
+
+
 def test_notification_preference_form_saves_release_type_filters():
     user = create_user()
     preference = NotificationPreference.objects.create(user=user)

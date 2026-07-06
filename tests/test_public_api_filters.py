@@ -172,6 +172,21 @@ def test_release_list_filters_by_since_datetime(client):
     assert release_titles(response) == ["New update"]
 
 
+def test_release_list_filters_by_naive_since_datetime(client):
+    old_updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+    new_updated_at = old_updated_at + timedelta(days=1)
+    create_release_event(title="Old update", updated_at=old_updated_at)
+    create_release_event(title="New update", updated_at=new_updated_at)
+
+    response = client.get(
+        reverse("releasewatch:api_v1_release_list"),
+        {"since": "2026-01-01T12:00:00"},
+    )
+
+    assert response.status_code == 200
+    assert release_titles(response) == ["New update"]
+
+
 @pytest.mark.parametrize(
     ("param", "value"),
     [
