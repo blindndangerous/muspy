@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from django.contrib.auth import get_user_model
+from django.core import signing
 from django.utils import timezone
 
 from releasewatch.models import (
@@ -9,6 +11,15 @@ from releasewatch.models import (
     NotificationCadence,
     ReleaseEvent,
 )
+
+_EMAIL_LINK_SALT = "releasewatch.email-links"
+_PURPOSE_UNSUBSCRIBE = "notification-unsubscribe"
+_PURPOSE_EMAIL_VERIFICATION = "email-verification"
+_EMAIL_VERIFICATION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
+
+
+class InvalidEmailLinkToken(ValueError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -24,6 +35,31 @@ class _DefaultPreference:
     cadence: str = NotificationCadence.DAILY
     email_enabled: bool = True
     include_future_releases: bool = True
+
+
+def make_unsubscribe_token(user) -> str:
+    return _make_email_link_token(user=user, purpose=_PURPOSE_UNSUBSCRIBE)
+
+
+def user_for_unsubscribe_token(token: str):
+    return _user_for_email_link_token(token=token, purpose=_PURPOSE_UNSUBSCRIBE)
+
+
+def make_email_verification_token(user) -> str:
+    return _make_email_link_token(
+        user=user,
+        purpose=_PURPOSE_EMAIL_VERIFICATION,
+        email=user.email,
+    )
+
+
+def user_for_email_verification_token(token: str):
+    return _user_for_email_link_token(
+        token=token,
+        purpose=_PURPOSE_EMAIL_VERIFICATION,
+        max_age=_EMAIL_VERIFICATION_MAX_AGE_SECONDS,
+        require_current_email=True,
+    )
 
 
 def fanout_release_event_notifications(
@@ -84,6 +120,40 @@ def fanout_release_event_notifications(
         existing_count=len(candidates) - len(new_notifications),
         skipped_count=skipped_count,
     )
+
+
+def _make_email_link_token(*, user, purpose: str, email: str = "") -> str:
+    payload = {"purpose": purpose, "user_id": user.pk}
+    if email:
+        payload["email"] = email
+    return signing.dumps(payload, salt=_EMAIL_LINK_SALT)
+
+
+def _user_for_email_link_token(
+    *,
+    token: str,
+    purpose: str,
+    max_age: int | None = None,
+    require_current_email: bool = False,
+):
+    try:
+        payload = signing.loads(token, salt=_EMAIL_LINK_SALT, max_age=max_age)
+    except signing.BadSignature as error:
+        raise InvalidEmailLinkToken("Invalid email link token.") from error
+    if not isinstance(payload, dict) or payload.get("purpose") != purpose:
+        raise InvalidEmailLinkToken("Invalid email link token.")
+
+    user_id = payload.get("user_id")
+    if user_id is None:
+        raise InvalidEmailLinkToken("Invalid email link token.")
+
+    filters = {"pk": user_id}
+    if require_current_email:
+        filters["email"] = payload.get("email", "")
+    try:
+        return get_user_model().objects.get(**filters)
+    except get_user_model().DoesNotExist as error:
+        raise InvalidEmailLinkToken("Invalid email link token.") from error
 
 
 def _preference_for_user(user):

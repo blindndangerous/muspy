@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm unsubscribe{% endblock %}
+
+{% block content %}
+  <h1>Confirm unsubscribe</h1>
+  <p>Confirm that you want to turn off email notifications.</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Unsubscribe</button>
+  </form>
+{% endblock %}

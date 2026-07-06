@@ -46,6 +46,11 @@ from releasewatch.models import (
     ReleaseEvent,
     UserProfile,
 )
+from releasewatch.notifications import (
+    InvalidEmailLinkToken,
+    user_for_email_verification_token,
+    user_for_unsubscribe_token,
+)
 from releasewatch.provider_tokens import encrypt_provider_token
 from releasewatch.rate_limits import (
     RateLimitUnavailable,
@@ -413,6 +418,37 @@ def revoke_feed_token(request, token_id: int):
         token.save(update_fields=["revoked_at"])
         messages.success(request, "Feed token revoked.")
     return redirect("releasewatch:feed_settings")
+
+
+def email_unsubscribe(request, token: str):
+    try:
+        user = user_for_unsubscribe_token(token)
+    except InvalidEmailLinkToken:
+        return render(request, "releasewatch/email_link_invalid.html", status=404)
+
+    if request.method == "GET":
+        return render(request, "releasewatch/email_unsubscribe_confirm.html")
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["GET", "POST"])
+
+    preference, _ = NotificationPreference.objects.get_or_create(user=user)
+    if preference.email_enabled:
+        preference.email_enabled = False
+        preference.save(update_fields=["email_enabled"])
+    return render(request, "releasewatch/email_unsubscribed.html")
+
+
+def verify_email(request, token: str):
+    try:
+        user = user_for_email_verification_token(token)
+    except InvalidEmailLinkToken:
+        return render(request, "releasewatch/email_link_invalid.html", status=404)
+
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    if profile.email_verified_at is None:
+        profile.email_verified_at = timezone.now()
+        profile.save(update_fields=["email_verified_at"])
+    return render(request, "releasewatch/email_verified.html")
 
 
 def rss_feed(request, token: str):

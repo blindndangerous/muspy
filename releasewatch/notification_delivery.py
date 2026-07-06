@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from releasewatch.models import EmailLog, Notification
+from releasewatch.notifications import make_unsubscribe_token
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,7 @@ def _send_notification_group(
             *[_notification_line(notification) for notification in notifications],
             "",
             "Change notification settings in Muspy.",
+            f"Unsubscribe: {_unsubscribe_url(user)}",
         ]
     )
     EmailMessage(
@@ -139,6 +142,15 @@ def _notification_line(notification: Notification) -> str:
     event = notification.release_event
     date_text = event.event_date.isoformat() if event.event_date else "Unknown date"
     return f"- {event.release_group.artist.name} - {event.release_group.title} ({date_text})"
+
+
+def _unsubscribe_url(user) -> str:
+    path = reverse("releasewatch:email_unsubscribe", args=[make_unsubscribe_token(user)])
+    return f"{_public_base_url()}{path}"
+
+
+def _public_base_url() -> str:
+    return getattr(settings, "PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
 
 
 def _subject(*, cadence_bucket: str, count: int) -> str:

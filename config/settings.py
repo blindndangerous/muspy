@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
@@ -51,6 +52,41 @@ def _env_required(
         return default
 
     raise ImproperlyConfigured(f"{name} environment variable must be set when DEBUG is false.")
+
+
+def _public_base_url(
+    debug: bool,
+    running_tests: bool | None = None,
+    running_plain_system_check: bool = False,
+) -> str:
+    if running_tests is None:
+        running_tests = _running_tests()
+
+    value = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if not value:
+        if debug or running_tests or running_plain_system_check:
+            return "http://localhost:8000"
+        raise ImproperlyConfigured(
+            "PUBLIC_BASE_URL environment variable must be set when DEBUG is false."
+        )
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ImproperlyConfigured("PUBLIC_BASE_URL must be an absolute HTTP or HTTPS URL.")
+
+    host = parsed.hostname or ""
+    if (
+        not debug
+        and not running_tests
+        and not running_plain_system_check
+        and (
+            host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}  # noqa: S104
+            or host.endswith(".localhost")
+        )
+    ):
+        raise ImproperlyConfigured("PUBLIC_BASE_URL must not use a localhost host in production.")
+
+    return value
 
 
 def _running_tests() -> bool:
@@ -107,6 +143,7 @@ def _database_config() -> dict:
 
 DEBUG = _env_bool("DEBUG")
 SECRET_KEY = _get_secret_key(DEBUG, running_plain_system_check=_running_plain_system_check())
+PUBLIC_BASE_URL = _public_base_url(DEBUG, running_plain_system_check=_running_plain_system_check())
 
 ALLOWED_HOSTS = [
     host.strip()

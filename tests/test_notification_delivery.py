@@ -67,6 +67,23 @@ def test_send_pending_notification_emails_sends_digest_and_marks_notifications_s
     assert EmailLog.objects.filter(user=user, status=EmailLog.Status.SENT).exists()
 
 
+def test_send_pending_notification_emails_includes_unsubscribe_url(settings):
+    settings.PUBLIC_BASE_URL = "https://muspy.example"
+    user = create_user()
+    create_notification(user)
+
+    from releasewatch.notification_delivery import send_pending_notification_emails
+    from releasewatch.notifications import user_for_unsubscribe_token
+
+    send_pending_notification_emails(batch_size=10)
+
+    body = mail.outbox[0].body
+    unsubscribe_line = next(line for line in body.splitlines() if "/email/unsubscribe/" in line)
+    token = unsubscribe_line.rsplit("/", 2)[-2]
+    assert unsubscribe_line.startswith("Unsubscribe: https://muspy.example/email/unsubscribe/")
+    assert user_for_unsubscribe_token(token) == user
+
+
 def test_send_pending_notification_emails_skips_users_without_email():
     user = create_user(email="")
     notification = create_notification(user)
