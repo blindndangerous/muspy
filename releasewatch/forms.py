@@ -183,6 +183,26 @@ class AccountPasswordChangeForm(PasswordChangeForm):
         _apply_accessible_field_attrs(self)
 
 
+class AccountDeleteForm(forms.Form):
+    confirm_delete = forms.CharField(
+        label="Type DELETE to confirm account deletion",
+        max_length=6,
+        strip=True,
+        help_text="This confirmation is required before your account can be deleted.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["confirm_delete"].widget.attrs["autocomplete"] = "off"
+        _apply_accessible_field_attrs(self)
+
+    def clean_confirm_delete(self):
+        value = self.cleaned_data["confirm_delete"]
+        if value != "DELETE":
+            raise forms.ValidationError("Type DELETE to confirm.")
+        return value
+
+
 class InviteSignupForm(UserCreationForm):
     email = forms.EmailField(label="Email address")
 

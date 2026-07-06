@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login, update_session_auth_hash
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
@@ -19,6 +19,7 @@ from releasewatch.feeds import (
     user_release_events,
 )
 from releasewatch.forms import (
+    AccountDeleteForm,
     AccountPasswordChangeForm,
     AccountSettingsForm,
     ArtistSearchForm,
@@ -432,6 +433,22 @@ def account_settings(request):
         "releasewatch/account_settings.html",
         {"account_form": account_form, "password_form": password_form},
     )
+
+
+@login_required
+def account_delete(request):
+    if request.method == "POST":
+        form = AccountDeleteForm(request.POST)
+        if form.is_valid():
+            user = request.user
+            user.delete()
+            logout(request)
+            messages.success(request, "Your account has been deleted.")
+            return redirect("releasewatch:home")
+    else:
+        form = AccountDeleteForm()
+
+    return render(request, "releasewatch/account_delete.html", {"form": form})
 
 
 @login_required

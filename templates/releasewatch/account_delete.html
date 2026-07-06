@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Delete account{% endblock %}
+
+{% block content %}
+  <h1>Delete account</h1>
+
+  {% if form.errors %}
+    <section class="error-summary" role="alert" aria-labelledby="account-delete-errors-title">
+      <h2 id="account-delete-errors-title">Fix these errors</h2>
+      {% if form.non_field_errors %}
+        {{ form.non_field_errors }}
+      {% endif %}
+      <p>Review the confirmation error below.</p>
+    </section>
+  {% endif %}
+
+  <section aria-labelledby="account-delete-warning-title">
+    <h2 id="account-delete-warning-title">Permanent deletion warning</h2>
+    <p>
+      This permanently deletes your account, follows, preferences, feed tokens, provider
+      accounts, imports, notifications, and email logs.
+    </p>
+    <p>
+      Shared artist and release data stays in Muspy so public release pages continue to work.
+    </p>
+  </section>
+
+  <form method="post" action="{% url 'releasewatch:account_delete' %}">
+    {% csrf_token %}
+    <fieldset>
+      <legend>Confirm deletion</legend>
+
+      <div class="field">
+        {{ form.confirm_delete.label_tag }}
+        {{ form.confirm_delete }}
+        {% if form.confirm_delete.help_text %}
+          <p id="{{ form.confirm_delete.auto_id }}_helptext">
+            {{ form.confirm_delete.help_text }}
+          </p>
+        {% endif %}
+        {% if form.confirm_delete.errors %}
+          <div id="{{ form.confirm_delete.auto_id }}_error" role="alert">
+            {{ form.confirm_delete.errors }}
+          </div>
+        {% endif %}
+      </div>
+
+      <button type="submit">Delete my account</button>
+      <a class="button" href="{% url 'releasewatch:account_settings' %}">Cancel</a>
+    </fieldset>
+  </form>
+{% endblock %}

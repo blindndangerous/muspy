@@ -123,4 +123,14 @@
       <button type="submit" name="password-submit" value="1">Change password</button>
     </fieldset>
   </form>
+
+  <section aria-labelledby="delete-account-title">
+    <h2 id="delete-account-title">Delete account</h2>
+    <p>
+      Delete your account and account-owned data when you no longer want to use Muspy.
+    </p>
+    <p>
+      <a class="button" href="{% url 'releasewatch:account_delete' %}">Delete account</a>
+    </p>
+  </section>
 {% endblock %}
