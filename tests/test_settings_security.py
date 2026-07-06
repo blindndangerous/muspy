@@ -26,6 +26,13 @@ def test_get_secret_key_allows_dev_fallback_when_running_tests(monkeypatch):
     assert app_settings._get_secret_key(debug=False, running_tests=True) == "dev-only-change-me"
 
 
+def test_get_secret_key_detects_running_tests_by_default(monkeypatch):
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    monkeypatch.setattr(app_settings.sys, "argv", ["pytest", "tests/test_settings_security.py"])
+
+    assert app_settings._get_secret_key(debug=False) == "dev-only-change-me"
+
+
 def test_get_secret_key_allows_dev_fallback_for_plain_system_check(monkeypatch):
     monkeypatch.delenv("SECRET_KEY", raising=False)
 
