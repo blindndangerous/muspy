@@ -450,6 +450,35 @@ class ReleaseEvent(models.Model):
         return str(self.release_group)
 
 
+class StarredRelease(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="starred_releases",
+    )
+    release_event = models.ForeignKey(
+        ReleaseEvent,
+        on_delete=models.CASCADE,
+        related_name="stars",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["release_event"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "release_event"],
+                name="starred_release_unique_user_event",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} starred {self.release_event}"
+
+
 class Notification(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"

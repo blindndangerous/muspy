@@ -5,6 +5,19 @@
 
 {% block content %}
   <h1>{{ event.release_group.title }}</h1>
+  {% if request.user.is_authenticated %}
+    {% if is_starred %}
+      <form method="post" action="{% url 'releasewatch:unstar_release' event.id %}">
+        {% csrf_token %}
+        <button type="submit" aria-label="Unstar {{ event.release_group.title }} by {{ event.release_group.artist.name }}">Unstar release</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'releasewatch:star_release' event.id %}">
+        {% csrf_token %}
+        <button type="submit" aria-label="Star {{ event.release_group.title }} by {{ event.release_group.artist.name }}">Star release</button>
+      </form>
+    {% endif %}
+  {% endif %}
   <figure>
     {% if cover_art %}
       <img src="{{ cover_art.url }}" alt="{{ cover_art.alt }}" referrerpolicy="no-referrer">

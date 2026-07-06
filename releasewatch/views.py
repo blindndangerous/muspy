@@ -35,6 +35,7 @@ from releasewatch.forms import (
     NotificationPreferenceForm,
     PlainTextImportForm,
     RemoveFollowForm,
+    StarredReleaseForm,
 )
 from releasewatch.images import artist_image_url, release_cover_art_url
 from releasewatch.imports import (
@@ -51,6 +52,7 @@ from releasewatch.models import (
     Invite,
     NotificationPreference,
     ReleaseEvent,
+    StarredRelease,
     UserProfile,
 )
 from releasewatch.notification_delivery import EmailDeliveryError, send_email_verification_email
@@ -83,6 +85,20 @@ def visible_release_events():
         ReleaseEvent.objects.select_related("release_group__artist", "release")
         .filter(visible=True)
         .order_by("event_date", "release_group__artist__sort_name", "release_group__title", "id")
+    )
+
+
+def _starred_event_ids(user, events):
+    if not user.is_authenticated:
+        return set()
+    event_ids = [event.id for event in events]
+    if not event_ids:
+        return set()
+    return set(
+        StarredRelease.objects.filter(user=user, release_event_id__in=event_ids).values_list(
+            "release_event_id",
+            flat=True,
+        )
     )
 
 
@@ -137,11 +153,56 @@ def home(request):
 
 
 def release_list(request):
+    events = list(visible_release_events()[:100])
     return render(
         request,
         "releasewatch/release_list.html",
-        {"events": visible_release_events()[:100]},
+        {"events": events, "starred_event_ids": _starred_event_ids(request.user, events)},
     )
+
+
+@login_required
+def starred_release_list(request):
+    stars = (
+        StarredRelease.objects.select_related(
+            "release_event__release_group__artist",
+            "release_event__release",
+        )
+        .filter(user=request.user, release_event__visible=True)
+        .order_by("-created_at", "-id")[:100]
+    )
+    events = [star.release_event for star in stars]
+    return render(
+        request,
+        "releasewatch/starred_release_list.html",
+        {"events": events, "starred_event_ids": {event.id for event in events}},
+    )
+
+
+def _release_action_redirect(event):
+    return redirect("releasewatch:release_detail", event_id=event.id)
+
+
+@login_required
+@require_POST
+def star_release(request, event_id: int):
+    event = get_object_or_404(visible_release_events(), pk=event_id)
+    form = StarredReleaseForm(request.POST)
+    if form.is_valid():
+        StarredRelease.objects.get_or_create(user=request.user, release_event=event)
+        messages.success(request, "Release starred.")
+    return _release_action_redirect(event)
+
+
+@login_required
+@require_POST
+def unstar_release(request, event_id: int):
+    event = get_object_or_404(visible_release_events(), pk=event_id)
+    form = StarredReleaseForm(request.POST)
+    if form.is_valid():
+        StarredRelease.objects.filter(user=request.user, release_event=event).delete()
+        messages.success(request, "Release unstarred.")
+    return _release_action_redirect(event)
 
 
 def about(request):
@@ -775,6 +836,10 @@ def artist_detail(request, artist_id: int):
 def release_detail(request, event_id: int):
     event = get_object_or_404(visible_release_events(), pk=event_id)
     cover_art_url = release_cover_art_url(event)
+    is_starred = (
+        request.user.is_authenticated
+        and StarredRelease.objects.filter(user=request.user, release_event=event).exists()
+    )
     return render(
         request,
         "releasewatch/release_detail.html",
@@ -789,5 +854,6 @@ def release_detail(request, event_id: int):
             }
             if cover_art_url
             else None,
+            "is_starred": is_starred,
         },
     )

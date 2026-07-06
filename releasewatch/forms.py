@@ -39,6 +39,10 @@ class RemoveFollowForm(forms.Form):
     pass
 
 
+class StarredReleaseForm(forms.Form):
+    pass
+
+
 class ImportCandidateReviewForm(forms.Form):
     action = forms.ChoiceField(
         choices=[

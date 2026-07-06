@@ -48,6 +48,9 @@ urlpatterns = [
     path("feeds/<str:token>/rss/", views.rss_feed, name="rss_feed"),
     path("feeds/<str:token>/ical/", views.ical_feed, name="ical_feed"),
     path("releases/", views.release_list, name="release_list"),
+    path("releases/starred/", views.starred_release_list, name="starred_release_list"),
+    path("releases/<int:event_id>/star/", views.star_release, name="star_release"),
+    path("releases/<int:event_id>/unstar/", views.unstar_release, name="unstar_release"),
     path("releases/<int:event_id>/", views.release_detail, name="release_detail"),
     path("sitemap.xml", views.sitemap, name="sitemap"),
 ]
