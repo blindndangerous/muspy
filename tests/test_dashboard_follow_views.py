@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.test import Client
 from django.urls import reverse
 
 from releasewatch.models import Artist, DatePrecision, Follow, ReleaseEvent, ReleaseGroup
@@ -140,3 +141,91 @@ def test_follow_list_shows_active_and_ignored_follows_for_user_only(client):
     assert b"Active Artist" in response.content
     assert b"Ignored Artist" in response.content
     assert b"Other Artist" not in response.content
+
+
+def test_follow_list_shows_remove_buttons_for_each_follow(client):
+    user = create_user()
+    active = create_artist("Active Artist")
+    ignored = create_artist("Ignored Artist")
+    active_follow = Follow.objects.create(user=user, artist=active)
+    ignored_follow = Follow.objects.create(user=user, artist=ignored, is_ignored=True)
+    client.force_login(user)
+
+    response = client.get(reverse("releasewatch:follow_list"))
+
+    assert response.status_code == 200
+    assert (
+        f'action="{reverse("releasewatch:remove_follow", args=[active_follow.id])}"'.encode()
+        in response.content
+    )
+    assert (
+        f'action="{reverse("releasewatch:remove_follow", args=[ignored_follow.id])}"'.encode()
+        in response.content
+    )
+    assert b"Unfollow Active Artist" in response.content
+    assert b"Remove Ignored Artist" in response.content
+
+
+def test_remove_follow_unfollows_active_artist_without_deleting_artist(client):
+    user = create_user()
+    artist = create_artist()
+    follow = Follow.objects.create(user=user, artist=artist)
+    client.force_login(user)
+
+    response = client.post(reverse("releasewatch:remove_follow", args=[follow.id]))
+
+    assert response.status_code == 302
+    assert response["Location"] == reverse("releasewatch:follow_list")
+    assert not Follow.objects.filter(pk=follow.id).exists()
+    assert Artist.objects.filter(pk=artist.id).exists()
+
+
+def test_remove_follow_removes_ignored_artist_without_deleting_artist(client):
+    user = create_user()
+    artist = create_artist("Ignored Artist")
+    follow = Follow.objects.create(user=user, artist=artist, is_ignored=True)
+    client.force_login(user)
+
+    response = client.post(reverse("releasewatch:remove_follow", args=[follow.id]))
+
+    assert response.status_code == 302
+    assert response["Location"] == reverse("releasewatch:follow_list")
+    assert not Follow.objects.filter(pk=follow.id).exists()
+    assert Artist.objects.filter(pk=artist.id).exists()
+
+
+def test_remove_follow_protects_other_users_follows(client):
+    user = create_user()
+    other_user = create_user("other")
+    artist = create_artist("Other Artist")
+    follow = Follow.objects.create(user=other_user, artist=artist)
+    client.force_login(user)
+
+    response = client.post(reverse("releasewatch:remove_follow", args=[follow.id]))
+
+    assert response.status_code == 404
+    assert Follow.objects.filter(pk=follow.id, user=other_user).exists()
+    assert Artist.objects.filter(pk=artist.id).exists()
+
+
+def test_remove_follow_requires_post(client):
+    user = create_user()
+    artist = create_artist()
+    follow = Follow.objects.create(user=user, artist=artist)
+    client.force_login(user)
+
+    response = client.get(reverse("releasewatch:remove_follow", args=[follow.id]))
+
+    assert response.status_code == 405
+
+
+def test_remove_follow_requires_csrf_token():
+    user = create_user("csrf-user")
+    artist = create_artist()
+    follow = Follow.objects.create(user=user, artist=artist)
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.post(reverse("releasewatch:remove_follow", args=[follow.id]))
+
+    assert response.status_code == 403

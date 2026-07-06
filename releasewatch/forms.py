@@ -21,6 +21,10 @@ class FollowArtistForm(forms.Form):
     mbid = forms.UUIDField(label="MusicBrainz artist ID")
 
 
+class RemoveFollowForm(forms.Form):
+    pass
+
+
 class ImportCandidateReviewForm(forms.Form):
     action = forms.ChoiceField(
         choices=[

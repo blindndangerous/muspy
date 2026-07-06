@@ -26,6 +26,7 @@ from releasewatch.forms import (
     ListenBrainzImportForm,
     NotificationPreferenceForm,
     PlainTextImportForm,
+    RemoveFollowForm,
 )
 from releasewatch.imports import (
     accept_import_candidate,
@@ -175,6 +176,27 @@ def follow_list(request):
         .order_by("is_ignored", "artist__sort_name", "artist__name")
     )
     return render(request, "releasewatch/follow_list.html", {"follows": follows})
+
+
+@login_required
+def remove_follow(request, follow_id: int):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    follow = get_object_or_404(
+        Follow.objects.select_related("artist"),
+        pk=follow_id,
+        user=request.user,
+    )
+    form = RemoveFollowForm(request.POST)
+    if form.is_valid():
+        artist_name = follow.artist.name
+        was_ignored = follow.is_ignored
+        follow.delete()
+        if was_ignored:
+            messages.success(request, f"Removed {artist_name}.")
+        else:
+            messages.success(request, f"Unfollowed {artist_name}.")
+    return redirect("releasewatch:follow_list")
 
 
 @login_required
