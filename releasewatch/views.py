@@ -30,6 +30,7 @@ from releasewatch.forms import (
     PlainTextImportForm,
     RemoveFollowForm,
 )
+from releasewatch.images import artist_image_url, release_cover_art_url
 from releasewatch.imports import (
     accept_import_candidate,
     ignore_import_candidate,
@@ -577,9 +578,39 @@ def artist_detail(request, artist_id: int):
         pk=artist_id,
     )
     events = visible_release_events().filter(release_group__artist=artist)
-    return render(request, "releasewatch/artist_detail.html", {"artist": artist, "events": events})
+    image_url = artist_image_url(artist)
+    return render(
+        request,
+        "releasewatch/artist_detail.html",
+        {
+            "artist": artist,
+            "events": events,
+            "artist_image": {
+                "url": image_url,
+                "alt": f"Artist image for {artist.name}",
+            }
+            if image_url
+            else None,
+        },
+    )
 
 
 def release_detail(request, event_id: int):
     event = get_object_or_404(visible_release_events(), pk=event_id)
-    return render(request, "releasewatch/release_detail.html", {"event": event})
+    cover_art_url = release_cover_art_url(event)
+    return render(
+        request,
+        "releasewatch/release_detail.html",
+        {
+            "event": event,
+            "cover_art": {
+                "url": cover_art_url,
+                "alt": (
+                    f"Cover art for {event.release_group.title} "
+                    f"by {event.release_group.artist.name}"
+                ),
+            }
+            if cover_art_url
+            else None,
+        },
+    )

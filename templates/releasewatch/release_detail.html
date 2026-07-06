@@ -5,6 +5,13 @@
 
 {% block content %}
   <h1>{{ event.release_group.title }}</h1>
+  <figure>
+    {% if cover_art %}
+      <img src="{{ cover_art.url }}" alt="{{ cover_art.alt }}" referrerpolicy="no-referrer">
+    {% else %}
+      <figcaption>No cover art available for {{ event.release_group.title }}.</figcaption>
+    {% endif %}
+  </figure>
   <dl>
     <dt>Artist</dt>
     <dd><a href="{% url 'releasewatch:artist_detail' event.release_group.artist_id %}">{{ event.release_group.artist.name }}</a></dd>

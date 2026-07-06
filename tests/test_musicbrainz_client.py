@@ -59,7 +59,7 @@ def test_lookup_artist_requests_artist_endpoint_with_json_and_user_agent():
 
     assert seen == {
         "path": f"/ws/2/artist/{ARTIST_MBID}",
-        "params": {"fmt": "json", "inc": "aliases"},
+        "params": {"fmt": "json", "inc": "aliases+url-rels"},
         "user_agent": USER_AGENT,
     }
     assert artist == UpstreamArtist(

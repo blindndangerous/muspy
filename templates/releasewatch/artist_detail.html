@@ -4,6 +4,13 @@
 
 {% block content %}
   <h1>{{ artist.name }}</h1>
+  <figure>
+    {% if artist_image %}
+      <img src="{{ artist_image.url }}" alt="{{ artist_image.alt }}" referrerpolicy="no-referrer">
+    {% else %}
+      <figcaption>No artist image available for {{ artist.name }}.</figcaption>
+    {% endif %}
+  </figure>
   {% if artist.disambiguation %}
     <p>{{ artist.disambiguation }}</p>
   {% endif %}

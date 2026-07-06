@@ -42,7 +42,7 @@ class MusicBrainzClient(UpstreamClient):
     def lookup_artist(self, mbid: str) -> UpstreamArtist:
         payload = self.get_json(
             f"/artist/{mbid}",
-            params={"fmt": "json", "inc": "aliases"},
+            params={"fmt": "json", "inc": "aliases+url-rels"},
         )
         return _artist_from_payload(payload)
 
