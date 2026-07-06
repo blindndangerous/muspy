@@ -8,7 +8,7 @@ from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonRespo
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from releasewatch.api import serialize_artist_detail, serialize_release_event
 from releasewatch.feeds import (
@@ -50,6 +50,7 @@ from releasewatch.models import (
     ReleaseEvent,
     UserProfile,
 )
+from releasewatch.notification_delivery import EmailDeliveryError, send_email_verification_email
 from releasewatch.notifications import (
     InvalidEmailLinkToken,
     user_for_email_verification_token,
@@ -431,8 +432,33 @@ def account_settings(request):
     return render(
         request,
         "releasewatch/account_settings.html",
-        {"account_form": account_form, "password_form": password_form},
+        {"account_form": account_form, "password_form": password_form, "profile": profile},
     )
+
+
+@login_required
+@require_POST
+def resend_email_verification(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if profile.email_verified:
+        messages.info(request, "Email address is already verified.")
+        return redirect("releasewatch:account_settings")
+
+    limited_response = _guard_rate_limit(
+        request,
+        scope="email-verification-resend",
+        rate=getattr(settings, "RATE_LIMIT_EMAIL_VERIFICATION_RESEND", (3, 3600)),
+    )
+    if limited_response is not None:
+        return limited_response
+
+    try:
+        send_email_verification_email(user=request.user)
+    except EmailDeliveryError:
+        messages.error(request, "We could not send verification email right now.")
+    else:
+        messages.success(request, "Verification email sent.")
+    return redirect("releasewatch:account_settings")
 
 
 @login_required

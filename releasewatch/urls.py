@@ -21,6 +21,11 @@ urlpatterns = [
     path("follows/<int:follow_id>/remove/", views.remove_follow, name="remove_follow"),
     path("imports/", views.import_list, name="import_list"),
     path("settings/account/", views.account_settings, name="account_settings"),
+    path(
+        "settings/account/email-verification/resend/",
+        views.resend_email_verification,
+        name="resend_email_verification",
+    ),
     path("settings/account/delete/", views.account_delete, name="account_delete"),
     path("settings/feeds/", views.feed_settings, name="feed_settings"),
     path(

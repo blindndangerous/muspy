@@ -7,7 +7,14 @@ from django.urls import reverse
 from django.utils import timezone
 
 from releasewatch.models import EmailLog, Notification
-from releasewatch.notifications import make_unsubscribe_token
+from releasewatch.notifications import make_email_verification_token, make_unsubscribe_token
+
+
+class EmailDeliveryError(RuntimeError):
+    pass
+
+
+EMAIL_VERIFICATION_DELIVERY_FAILED = "Verification email delivery failed."
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,39 @@ def send_pending_notification_emails(*, batch_size: int = 100) -> NotificationDe
         sent_count=sent_count,
         failed_count=failed_count,
         skipped_count=skipped_count,
+    )
+
+
+def send_email_verification_email(*, user) -> None:
+    try:
+        EmailMessage(
+            subject="Verify your Muspy email address",
+            body="\n".join(
+                [
+                    "Verify your Muspy email address:",
+                    "",
+                    _email_verification_url(user),
+                    "",
+                    "If you did not request this email, you can ignore it.",
+                ]
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email],
+        ).send(fail_silently=False)
+    except Exception as error:
+        EmailLog.objects.create(
+            user=user,
+            message_type=EmailLog.MessageType.VERIFICATION,
+            status=EmailLog.Status.FAILED,
+            error_message=EMAIL_VERIFICATION_DELIVERY_FAILED,
+        )
+        raise EmailDeliveryError("Verification email could not be sent.") from error
+
+    EmailLog.objects.create(
+        user=user,
+        message_type=EmailLog.MessageType.VERIFICATION,
+        status=EmailLog.Status.SENT,
+        sent_at=timezone.now(),
     )
 
 
@@ -146,6 +186,11 @@ def _notification_line(notification: Notification) -> str:
 
 def _unsubscribe_url(user) -> str:
     path = reverse("releasewatch:email_unsubscribe", args=[make_unsubscribe_token(user)])
+    return f"{_public_base_url()}{path}"
+
+
+def _email_verification_url(user) -> str:
+    path = reverse("releasewatch:verify_email", args=[make_email_verification_token(user)])
     return f"{_public_base_url()}{path}"
 
 

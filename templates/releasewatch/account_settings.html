@@ -75,6 +75,19 @@
     </fieldset>
   </form>
 
+  <section aria-labelledby="email-verification-title">
+    <h2 id="email-verification-title">Email verification</h2>
+    {% if profile.email_verified %}
+      <p>Your email address is verified.</p>
+    {% else %}
+      <p>Your email address is not verified.</p>
+      <form method="post" action="{% url 'releasewatch:resend_email_verification' %}">
+        {% csrf_token %}
+        <button type="submit">Resend verification email</button>
+      </form>
+    {% endif %}
+  </section>
+
   <form method="post" action="{% url 'releasewatch:account_settings' %}">
     {% csrf_token %}
     <fieldset>
