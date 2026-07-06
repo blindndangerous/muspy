@@ -135,6 +135,13 @@ def test_public_base_url_rejects_relative_value(monkeypatch):
         app_settings._public_base_url(debug=False, running_tests=False)
 
 
+def test_public_base_url_rejects_localhost_in_production(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://0.0.0.0:8000")
+
+    with pytest.raises(ImproperlyConfigured, match="localhost host"):
+        app_settings._public_base_url(debug=False, running_tests=False)
+
+
 def test_running_tests_detects_pytest_script(monkeypatch):
     monkeypatch.setattr(app_settings.sys, "argv", ["pytest", "tests/test_settings_security.py"])
 

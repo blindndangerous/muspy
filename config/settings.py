@@ -80,7 +80,7 @@ def _public_base_url(
         and not running_tests
         and not running_plain_system_check
         and (
-            host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}  # noqa: S104
+            host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}  # noqa: S104  # nosec B104
             or host.endswith(".localhost")
         )
     ):
