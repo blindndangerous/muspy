@@ -99,6 +99,42 @@ def test_upstream_timeout_rejects_out_of_range_value(monkeypatch):
         app_settings._env_int("UPSTREAM_HTTP_TIMEOUT_SECONDS", default=10, minimum=1, maximum=60)
 
 
+def test_env_bool_accepts_truthy_values(monkeypatch):
+    monkeypatch.setenv("ENABLE_FEATURE", "yes")
+
+    assert app_settings._env_bool("ENABLE_FEATURE") is True
+
+
+def test_env_int_accepts_valid_value(monkeypatch):
+    monkeypatch.setenv("UPSTREAM_HTTP_TIMEOUT_SECONDS", "30")
+
+    assert (
+        app_settings._env_int("UPSTREAM_HTTP_TIMEOUT_SECONDS", default=10, minimum=1, maximum=60)
+        == 30
+    )
+
+
+def test_env_required_prefers_env_value(monkeypatch):
+    monkeypatch.setenv("CELERY_BROKER_URL", "amqp://broker.example//")
+
+    assert (
+        app_settings._env_required(
+            "CELERY_BROKER_URL",
+            default="amqp://guest:guest@localhost:5672//",
+            debug=False,
+            running_tests=False,
+        )
+        == "amqp://broker.example//"
+    )
+
+
+def test_public_base_url_rejects_relative_value(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "/muspy")
+
+    with pytest.raises(ImproperlyConfigured, match="absolute HTTP or HTTPS"):
+        app_settings._public_base_url(debug=False, running_tests=False)
+
+
 def test_running_tests_detects_pytest_script(monkeypatch):
     monkeypatch.setattr(app_settings.sys, "argv", ["pytest", "tests/test_settings_security.py"])
 

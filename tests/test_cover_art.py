@@ -146,6 +146,42 @@ def test_release_cover_art_url_accepts_cover_art_archive_payload_image_urls():
     assert release_cover_art_url(event) == "https://archive.org/download/mbid/front-500.jpg"
 
 
+def test_release_cover_art_url_ignores_non_front_or_malformed_images():
+    _, _, _, event = create_event(
+        release_raw_payload={
+            "images": [
+                {"front": False, "thumbnails": {"500": "https://archive.org/back.jpg"}},
+                "not-an-image-payload",
+            ]
+        },
+        group_raw_payload={"images": "not-a-list"},
+    )
+
+    assert release_cover_art_url(event) is None
+
+
+def test_artist_image_url_accepts_direct_trusted_image():
+    artist, _, _, _ = create_event(
+        artist_raw_payload={"image_url": "https://commons.wikimedia.org/fugazi.jpg"}
+    )
+
+    assert artist_image_url(artist) == "https://commons.wikimedia.org/fugazi.jpg"
+
+
+def test_artist_image_url_ignores_malformed_relations():
+    artist, _, _, _ = create_event(
+        artist_raw_payload={
+            "image": {"resource": "https://upload.wikimedia.org/fugazi.jpg"},
+            "relations": [
+                {"target-type": "artist", "type": "image"},
+                "not-a-relation-payload",
+            ],
+        }
+    )
+
+    assert artist_image_url(artist) is None
+
+
 def test_musicbrainz_lookup_artist_requests_url_relations_for_artist_images():
     seen = {}
 

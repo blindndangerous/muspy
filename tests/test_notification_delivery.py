@@ -114,3 +114,15 @@ def test_send_pending_notification_emails_marks_failures(mocker):
     assert notification.status == Notification.Status.FAILED
     assert "smtp down" in notification.error_message
     assert EmailLog.objects.filter(user=user, status=EmailLog.Status.FAILED).exists()
+
+
+def test_notification_subjects_match_cadence_bucket():
+    from releasewatch.notification_delivery import _message_type, _subject
+
+    assert _subject(cadence_bucket="instant:2026-06-22", count=1) == (
+        "Muspy release notification"
+    )
+    assert _subject(cadence_bucket="weekly:2026-W26", count=3) == (
+        "Muspy weekly digest (3)"
+    )
+    assert _message_type("instant:2026-06-22") == EmailLog.MessageType.INSTANT

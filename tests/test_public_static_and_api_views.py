@@ -175,6 +175,28 @@ def test_public_api_artist_detail_returns_visible_artist_data(client):
     }
 
 
+def test_public_api_release_list_serializes_missing_release_and_unknown_dates(client):
+    artist = Artist.objects.create(mbid=uuid4(), name="Fugazi", sort_name="Fugazi")
+    group = ReleaseGroup.objects.create(
+        mbid=uuid4(),
+        artist=artist,
+        title="Unknown Pleasures",
+        primary_type="Album",
+    )
+    event = ReleaseEvent.objects.create(
+        release_group=group,
+        release=None,
+        visible=True,
+    )
+
+    response = client.get(reverse("releasewatch:api_v1_release_list"))
+
+    release_payload = response.json()["releases"][0]
+    assert release_payload["id"] == event.id
+    assert release_payload["release"] is None
+    assert release_payload["date"] is None
+
+
 def test_public_api_artist_detail_caps_visible_releases(client):
     artist = Artist.objects.create(mbid=uuid4(), name="Fugazi", sort_name="Fugazi")
     for index in range(101):
