@@ -69,6 +69,13 @@ class NotificationPreference(models.Model):
     )
     email_enabled = models.BooleanField(default=True)
     include_future_releases = models.BooleanField(default=True)
+    include_albums = models.BooleanField("Albums", default=True)
+    include_singles = models.BooleanField("Singles", default=True)
+    include_eps = models.BooleanField("EPs", default=True)
+    include_live = models.BooleanField("Live releases", default=True)
+    include_compilations = models.BooleanField("Compilations", default=True)
+    include_remixes = models.BooleanField("Remixes", default=True)
+    include_other_release_types = models.BooleanField("Other release types", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

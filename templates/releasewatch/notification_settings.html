@@ -29,6 +29,38 @@
       {{ form.include_future_releases.label_tag }}
     </div>
 
+    <fieldset>
+      <legend>Release types</legend>
+      <div class="field">
+        {{ form.include_albums }}
+        {{ form.include_albums.label_tag }}
+      </div>
+      <div class="field">
+        {{ form.include_singles }}
+        {{ form.include_singles.label_tag }}
+      </div>
+      <div class="field">
+        {{ form.include_eps }}
+        {{ form.include_eps.label_tag }}
+      </div>
+      <div class="field">
+        {{ form.include_live }}
+        {{ form.include_live.label_tag }}
+      </div>
+      <div class="field">
+        {{ form.include_compilations }}
+        {{ form.include_compilations.label_tag }}
+      </div>
+      <div class="field">
+        {{ form.include_remixes }}
+        {{ form.include_remixes.label_tag }}
+      </div>
+      <div class="field">
+        {{ form.include_other_release_types }}
+        {{ form.include_other_release_types.label_tag }}
+      </div>
+    </fieldset>
+
     <button type="submit">Save notification settings</button>
   </form>
 {% endblock %}

@@ -16,6 +16,15 @@ _EMAIL_LINK_SALT = "releasewatch.email-links"
 _PURPOSE_UNSUBSCRIBE = "notification-unsubscribe"
 _PURPOSE_EMAIL_VERIFICATION = "email-verification"
 _EMAIL_VERIFICATION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
+_RELEASE_TYPE_FIELD_BY_VALUE = {
+    "album": "include_albums",
+    "single": "include_singles",
+    "ep": "include_eps",
+    "live": "include_live",
+    "compilation": "include_compilations",
+    "remix": "include_remixes",
+}
+_OTHER_RELEASE_TYPE_FIELD = "include_other_release_types"
 
 
 class InvalidEmailLinkToken(ValueError):
@@ -35,6 +44,13 @@ class _DefaultPreference:
     cadence: str = NotificationCadence.DAILY
     email_enabled: bool = True
     include_future_releases: bool = True
+    include_albums: bool = True
+    include_singles: bool = True
+    include_eps: bool = True
+    include_live: bool = True
+    include_compilations: bool = True
+    include_remixes: bool = True
+    include_other_release_types: bool = True
 
 
 def make_unsubscribe_token(user) -> str:
@@ -168,11 +184,41 @@ def _preference_skips_event(
 ) -> bool:
     if not preference.email_enabled or preference.cadence == NotificationCadence.OFF:
         return True
-    return (
+    if (
         not preference.include_future_releases
         and release_event.event_date is not None
         and release_event.event_date > now.date()
+    ):
+        return True
+    return _preference_disables_release_type(
+        preference=preference,
+        release_event=release_event,
     )
+
+
+def _preference_disables_release_type(*, preference, release_event: ReleaseEvent) -> bool:
+    return any(
+        not getattr(preference, field_name, True)
+        for field_name in _release_type_filter_fields(release_event)
+    )
+
+
+def _release_type_filter_fields(release_event: ReleaseEvent) -> set[str]:
+    release_group = release_event.release_group
+    type_values = [release_group.primary_type, *_secondary_type_values(release_group)]
+    return {_release_type_filter_field(type_value) for type_value in type_values}
+
+
+def _secondary_type_values(release_group) -> list[str]:
+    secondary_types = release_group.secondary_types
+    if isinstance(secondary_types, list):
+        return secondary_types
+    return []
+
+
+def _release_type_filter_field(type_value) -> str:
+    normalized = str(type_value or "").strip().casefold()
+    return _RELEASE_TYPE_FIELD_BY_VALUE.get(normalized, _OTHER_RELEASE_TYPE_FIELD)
 
 
 def _cadence_bucket(*, cadence: str, release_event: ReleaseEvent, now: datetime) -> str:

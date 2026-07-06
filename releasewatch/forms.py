@@ -103,7 +103,18 @@ class NotificationPreferenceForm(forms.ModelForm):
 
     class Meta:
         model = NotificationPreference
-        fields = ["cadence", "email_enabled", "include_future_releases"]
+        fields = [
+            "cadence",
+            "email_enabled",
+            "include_future_releases",
+            "include_albums",
+            "include_singles",
+            "include_eps",
+            "include_live",
+            "include_compilations",
+            "include_remixes",
+            "include_other_release_types",
+        ]
 
 
 class FeedTokenForm(forms.Form):
